@@ -11,8 +11,8 @@ def get_dim_act(args):
         act = lambda x: x
     else:
         act = getattr(F, args.act)
-    acts = [act] * args.num_layers
-    dims = [args.feat_dim] + ([args.dim] * args.num_layers)
+    acts = [act] * (args.num_layers-1)
+    dims = [args.feat_dim] + ([args.dim] * (args.num_layers-1))
     return dims, acts
 
 
@@ -46,12 +46,7 @@ class HighWayGraphConvolution(GraphConvolution):
     # GCN Layer with HighWay Gate
 
     def __init__(self, in_features, out_features, dropout, act, use_bias):
-        super(GraphConvolution, self).__init__()
-        self.dropout = dropout
-        self.linear = nn.Linear(in_features, out_features, use_bias)
-        self.act = act
-        self.in_features = in_features
-        self.out_features = out_features
+        super(HighWayGraphConvolution, self).__init__(in_features, out_features, dropout, act, use_bias)
 
     def forward(self, input):
         x, adj = input
@@ -71,7 +66,11 @@ class HighWayGraphConvolution(GraphConvolution):
         transform_gate = torch.spmm(x, kernel_gate) + bias_gate
         transform_gate = torch.sigmoid(transform_gate)
         carry_gate = 1.0 - transform_gate
-        output = transform_gate * support + carry_gate * x, adj
+        if x.is_sparse:
+            residual = x.to_dense()
+        else:
+            residual = x
+        output = transform_gate * support + carry_gate * residual, adj
         return output
 
     def extra_repr(self):

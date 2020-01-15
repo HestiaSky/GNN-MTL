@@ -10,21 +10,23 @@ config_args = {
     'seed': 10086,
     'task': 'nc',
     'model': 'GAT',
-    'num-layers': 2,
+    'num-layers': 3,
     'act': 'relu',
-    'dim': 100,
+    'dim': 300,
     'n-heads': 4,
     'alpha': 0.2,
-    'dataset': 'disc',
+    'dataset': 'dis',
     'normalize_x': 1,
     'normalize_adj': 1,
     'patience': 100,
     'log-freq': 1,
-    'eval-freq': 1,
+    'eval-freq': 50,
     'lr-reduce-freq': 50,
     'gamma': 0.1,
     'min-epochs': 100,
-    'use_feats': 0
+    'use_feats': 0,
+    'bias': 1,
+    'neg_num': 125
 }
 
 parser = argparse.ArgumentParser()

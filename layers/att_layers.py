@@ -45,13 +45,14 @@ class SpGraphAttentionLayer(nn.Module):
         ones = torch.ones(size=(N, 1))
         if h.is_cuda:
             ones = ones.cuda()
-        e_rowsum = torch.sparse.mm(torch.sparse_coo_tensor(edge, edge_e), ones)
+        e_rowsum = torch.spmm(torch.sparse_coo_tensor(edge, edge_e), ones)
         # e_rowsum: N x 1
 
         edge_e = self.dropout(edge_e)
         # edge_e: E
 
-        h_prime = torch.sparse.mm(torch.sparse_coo_tensor(edge, edge_e), h)
+        h_prime = torch.spmm(torch.sparse_coo_tensor(edge, edge_e), h)
+        print(torch.isnan(h_prime).long().sum())
         assert not torch.isnan(h_prime).any()
         # h_prime: N x out
 

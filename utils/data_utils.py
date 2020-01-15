@@ -17,7 +17,7 @@ def load_data(args):
     elif args.task == 'lp':
         data = load_data_lp(args.dataset, args.use_feats)
     else:
-        data = load_data_ea(args.dataset, args.use_feats)
+        data = load_data_ea(args.dataset)
 
     data['x'], data['adj'] = process(data['x'], data['adj'], args.normalize_x, args.normalize_adj)
     return data
@@ -59,11 +59,11 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
 
 
 def load_data_nc(dataset, use_feats):
-    if dataset in ['disc', 'disd', 'disp', 'med', 'dur']:
+    if dataset in ['dis', 'med', 'dur']:
         names = ['y', 'graph']
         objects = []
         for i in range(len(names)):
-            with open(os.path.join("data/{}/{}_{}.pkl".format(dataset, dataset, names[i])), 'rb') as f:
+            with open(os.path.join("data/mimic/{}/{}_{}.pkl".format(dataset, dataset, names[i])), 'rb') as f:
                 objects.append(pkl.load(f))
         y, graph = tuple(objects)
         all_idx = np.arange(len(y))
@@ -98,7 +98,7 @@ def load_data_nc(dataset, use_feats):
                                                                                                  nb_val + nb_test:]
         adj1 = nx.adjacency_matrix(nx.from_dict_of_lists(graph1))
         if not use_feats:
-            features1 = sp.sparse.coo_matrix(sp.eye(adj1.shape[0]))
+            features1 = sp.coo_matrix(sp.eye(adj1.shape[0]))
         y1 = torch.LongTensor(y1)
 
         all_idx2 = np.arange(len(y2))
@@ -110,7 +110,7 @@ def load_data_nc(dataset, use_feats):
                                                                                                  nb_val + nb_test:]
         adj2 = nx.adjacency_matrix(nx.from_dict_of_lists(graph2))
         if not use_feats:
-            features2 = sp.sparse.coo_matrix(sp.eye(adj2.shape[0]))
+            features2 = sp.coo_matrix(sp.eye(adj2.shape[0]))
         y2 = torch.LongTensor(y2)
 
         all_idx3 = np.arange(len(y3))
@@ -122,7 +122,7 @@ def load_data_nc(dataset, use_feats):
                                                                                                  nb_val + nb_test:]
         adj3 = nx.adjacency_matrix(nx.from_dict_of_lists(graph3))
         if not use_feats:
-            features3 = sp.sparse.coo_matrix(sp.eye(adj3.shape[0]))
+            features3 = sp.coo_matrix(sp.eye(adj3.shape[0]))
         y3 = torch.LongTensor(y3)
 
         data = {'adj1': adj1, 'x1': features1, 'y1': y1,
@@ -199,12 +199,14 @@ def get_matrix(e, KG):
 def get_sparse_tensor(e, KG):
     print('getting a sparse tensor...')
     M, degree = get_matrix(e, KG)
-    ind = []
+    row = []
+    col = []
     val = []
     for fir, sec in M:
-        ind.append([fir, sec])
+        row.append(fir)
+        col.append(sec)
         val.append(M[(fir, sec)] / math.sqrt(degree[fir]) / math.sqrt(degree[sec]))
-    M = torch.sparse.FloatTensor(torch.LongTensor(ind).t(), torch.FloatTensor(val), torch.Size([e, e]))
+    M = sp.coo_matrix((val, (row, col)), shape=(e, e))
     return M
 
 
@@ -214,7 +216,7 @@ def get_features(lang):
         embedding_list = json.load(f)
         print(len(embedding_list), 'rows,', len(embedding_list[0]), 'columns.')
     ent_embeddings = torch.Tensor(embedding_list)
-    return F.normalize(ent_embeddings, 2, 1)
+    return sp.coo_matrix(F.normalize(ent_embeddings, 2, 1))
 
 
 # load a file and return a list of tuple containing $num integers in each line
@@ -231,23 +233,23 @@ def loadfile(fn, num=1):
     return ret
 
 
-def load_data_ea(dataset, use_feats):
+def load_data_ea(dataset):
     lang = dataset  # zh_en | ja_en | fr_en
-    e1 = 'data/dbp15k/' + lang + '/ent_ids1'
-    e2 = 'data/dbp15k/' + lang + '/ent_ids2'
-    r1 = 'data/' + lang + '/rel_ids_1'
-    r2 = 'data/' + lang + '/rel_ids_2'
-    ill = 'data/' + lang + '/ref_ent_ids'
-    ill_r = 'data/' + lang + '/ref_r_ids'
-    kg1 = 'data/' + lang + '/triples_1'
-    kg2 = 'data/' + lang + '/triples_2'
+    e1 = 'data/dbp15k/' + lang + '/ent_ids_1'
+    e2 = 'data/dbp15k/' + lang + '/ent_ids_2'
+    r1 = 'data/dbp15k/' + lang + '/rel_ids_1'
+    r2 = 'data/dbp15k/' + lang + '/rel_ids_2'
+    ill = 'data/dbp15k/' + lang + '/ref_ent_ids'
+    ill_r = 'data/dbp15k/' + lang + '/ref_r_ids'
+    kg1 = 'data/dbp15k/' + lang + '/triples_1'
+    kg2 = 'data/dbp15k/' + lang + '/triples_2'
 
     e = len(set(loadfile(e1, 1)) | set(loadfile(e2, 1)))
     ILL = loadfile(ill, 2)
     illL = len(ILL)
     np.random.shuffle(ILL)
     train = np.array(ILL[:illL // 10 * 3])
-    test = ILL[illL // 10 * 3:]
+    test = np.array(ILL[illL // 10 * 3:])
     test_r = loadfile(ill_r, 2)
     KG = loadfile(kg1, 3) + loadfile(kg2, 3)
 
@@ -255,7 +257,7 @@ def load_data_ea(dataset, use_feats):
     M = get_sparse_tensor(e, KG)
     head, tail, head_r, tail_r = rfunc(e, KG)
     data = {'x': features, 'adj': M, 'head': head, 'tail': tail, 'head_r': head_r, 'tail_r': tail_r,
-            'train': train, 'test': test}
+            'train': train, 'test': test, 'test_r': test_r}
     return data
 
 

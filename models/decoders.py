@@ -40,8 +40,24 @@ class GATDecoder(Decoder):
         self.decode_adj = True
 
 
+class MLPDecoder(Decoder):
+    # Multi-layer perceptron Decoder.
+
+    def __init__(self, args):
+        super(MLPDecoder, self).__init__()
+        dims = [args.dim, args.dim, args.dim, args.n_classes]
+        acts = ['relu'] * 3
+        layers = []
+        for i in range(len(dims) - 1):
+            in_dim, out_dim = dims[i], dims[i + 1]
+            act = acts[i]
+            layers.append(Linear(in_dim, out_dim, args.dropout, act, args.bias))
+        self.cls = nn.Sequential(*layers)
+        self.decode_adj = False
+
+
 model2decoder = {
     'GCN': GCNDecoder,
-    'GAT': GATDecoder,
+    'GAT': MLPDecoder,
     'HGCN': GCNDecoder,
 }

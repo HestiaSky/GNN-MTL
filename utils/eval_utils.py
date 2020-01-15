@@ -1,6 +1,12 @@
-from sklearn.metrics import average_precision_score, accuracy_score, f1_score, roc_auc_score, roc_curve, auc
+from sklearn.metrics import accuracy_score, f1_score, roc_curve, auc
 import numpy as np
 import torch
+import scipy
+
+
+def format_metrics(metrics, split):
+    return " ".join(
+        ["{}_{}: {:.4f}".format(split, metric_name, metric_val) for metric_name, metric_val in metrics.items()])
 
 
 def nc_metrics(output, labels, n_classes):
@@ -59,3 +65,32 @@ def recall_at_k(logits, y, k):
     vals[np.isnan(vals)] = 0.
 
     return np.mean(vals)
+
+
+def get_hits(vec, test_pair, top_k=(1, 10, 50, 100)):
+    Lvec = np.array([vec[e1].detach().numpy() for e1, e2 in test_pair])
+    Rvec = np.array([vec[e2].detach().numpy() for e1, e2 in test_pair])
+    sim = scipy.spatial.distance.cdist(Lvec, Rvec, metric='cityblock')
+    top_lr = [0] * len(top_k)
+    for i in range(Lvec.shape[0]):
+        rank = sim[i, :].argsort()
+        rank_index = np.where(rank == i)[0][0]
+        for j in range(len(top_k)):
+            if rank_index < top_k[j]:
+                top_lr[j] += 1
+    top_rl = [0] * len(top_k)
+    for i in range(Rvec.shape[0]):
+        rank = sim[:, i].argsort()
+        rank_index = np.where(rank == i)[0][0]
+        for j in range(len(top_k)):
+            if rank_index < top_k[j]:
+                top_rl[j] += 1
+
+    metrics = {}
+    for i in range(len(top_lr)):
+        metric_name, metric_val = 'Hits@{}_l'.format(top_k[i]), top_lr[i] / len(test_pair) * 100
+        metrics[metric_name] = metric_val
+    for i in range(len(top_rl)):
+        metric_name, metric_val = 'Hits@{}_r'.format(top_k[i]), top_rl[i] / len(test_pair) * 100
+        metrics[metric_name] = metric_val
+    return metrics

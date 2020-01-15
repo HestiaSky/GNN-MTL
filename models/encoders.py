@@ -51,7 +51,7 @@ class GCN(Encoder):
 
 
 class HGCN(Encoder):
-    # Graph Convolution Networks.
+    # HighWay Graph Convolution Networks.
 
     def __init__(self, args):
         super(HGCN, self).__init__()
