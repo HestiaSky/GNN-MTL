@@ -6,7 +6,7 @@ from config import parser
 
 from utils.data_utils import *
 from utils.eval_utils import format_metrics
-from models.models import NCModel, EAModel
+from models.models import NCModel, EAModel, MultitaskNCModel1
 
 
 def train(args):
@@ -29,7 +29,7 @@ def train(args):
         args.n_classes = len(data['y'][0])
         print(f'Num Labels: {args.n_classes}')
     elif args.task == 'nc' and args.dataset in ['multitask1', 'multitask2']:
-        Model = MTModel
+        Model = MultitaskNCModel1
         print(f'Multitask Model: {args.dataset}')
     elif args.task == 'ea':
         Model = EAModel
@@ -72,8 +72,14 @@ def train(args):
         if args.task == 'ea' and epoch % 50 == 0:
             model.neg_right = model.get_neg(data['train'][:, 0], outputs, args.neg_num)
             model.neg2_left = model.get_neg(data['train'][:, 1], outputs, args.neg_num)
-        loss = model.get_loss(outputs, data, 'train')
-        loss.backward()
+        if args.task == 'nc' and args.dataset in ['multitask1', 'multitask2']:
+            loss_dis, loss_med, loss_dur = model.get_loss(outputs, data, 'train')
+            loss_dis.backward()
+            loss_med.backward()
+            loss_dur.backward()
+        else:
+            loss = model.get_loss(outputs, data, 'train')
+            loss.backward()
         optimizer.step()
         lr_scheduler.step()
         if (epoch + 1) % args.log_freq == 0:

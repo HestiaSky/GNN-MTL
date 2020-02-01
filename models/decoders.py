@@ -1,9 +1,6 @@
 """Graph decoders."""
-import torch.nn as nn
-import torch.nn.functional as F
-
 from layers.att_layers import GraphAttentionLayer
-from layers.layers import GraphConvolution, Linear
+from layers.layers import *
 
 
 class Decoder(nn.Module):
@@ -40,6 +37,16 @@ class GATDecoder(Decoder):
         self.decode_adj = True
 
 
+class HGCNDecoder(Decoder):
+    # Highway Graph Convolution Decoder.
+
+    def __init__(self, args):
+        super(HGCNDecoder, self).__init__()
+        act = lambda x: x
+        self.cls = HighWayGraphConvolution(args.dim, args.n_classes, args.dropout, act, args.bias)
+        self.decode_adj = True
+
+
 class MLPDecoder(Decoder):
     # Multi-layer perceptron Decoder.
 
@@ -57,7 +64,7 @@ class MLPDecoder(Decoder):
 
 
 model2decoder = {
-    'GCN': GCNDecoder,
+    'GCN': MLPDecoder,
     'GAT': MLPDecoder,
-    'HGCN': GCNDecoder,
+    'HGCN': HGCNDecoder,
 }

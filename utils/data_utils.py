@@ -71,7 +71,7 @@ def load_data_nc(dataset, use_feats):
         all_idx = all_idx.tolist()
         nb_val = round(0.10 * len(all_idx))
         nb_test = round(0.20 * len(all_idx))
-        idx_val, idx_test, idx_train = all_idx[:nb_val], all_idx[nb_val: nb_val + nb_test], all_idx[nb_val + nb_test:]
+        idx_val, idx_test, idx_train = all_idx[:nb_val], all_idx[nb_val: nb_val+nb_test], all_idx[nb_val+nb_test:]
         adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
         if not use_feats:
             features = sp.coo_matrix(sp.eye(adj.shape[0]))
@@ -80,57 +80,50 @@ def load_data_nc(dataset, use_feats):
                 'idx_test': idx_test}
 
     elif dataset in ['multitask1', 'multitask2']:
-        datapath = ['disc', 'med', 'dur']
-        names = ['y', 'graph']
+        datapath = ['dis', 'med', 'dur']
+        names = ['id', 'y']
         objects = []
         for path in datapath:
             for i in range(len(names)):
-                with open(os.path.join("data/{}/{}_{}.pkl".format(path, path, names[i])), 'rb') as f:
+                with open(os.path.join("data/mimic/multitask/{}_{}.pkl".format(path, names[i])), 'rb') as f:
                     objects.append(pkl.load(f))
-        y1, graph1, y2, graph2, y3, graph3 = tuple(objects)
+        with open("data/mimic/multitask/graph.pkl", 'rb') as f:
+            objects.append(pkl.load(f))
+        dis_id, dis_y, med_id, med_y, dur_id, dur_y, graph = tuple(objects)
 
-        all_idx1 = np.arange(len(y1))
-        np.random.shuffle(all_idx1)
-        all_idx1 = all_idx1.tolist()
-        nb_val = round(0.10 * len(all_idx1))
-        nb_test = round(0.20 * len(all_idx1))
-        idx_val1, idx_test1, idx_train1 = all_idx1[:nb_val], all_idx1[nb_val: nb_val + nb_test], all_idx1[
-                                                                                                 nb_val + nb_test:]
-        adj1 = nx.adjacency_matrix(nx.from_dict_of_lists(graph1))
+        all_idx = np.arange(len(dis_id))
+        np.random.shuffle(all_idx)
+        all_idx = all_idx.tolist()
+        nb_val = round(0.10 * len(all_idx))
+        nb_test = round(0.20 * len(all_idx))
+        dis_val, dis_test, dis_train = all_idx[:nb_val], all_idx[nb_val: nb_val+nb_test], all_idx[nb_val+nb_test:]
+        dis_y = torch.LongTensor(dis_y)
+
+        all_idx = np.arange(len(med_id))
+        np.random.shuffle(all_idx)
+        all_idx = all_idx.tolist()
+        nb_val = round(0.10 * len(all_idx))
+        nb_test = round(0.20 * len(all_idx))
+        med_val, med_test, med_train = all_idx[:nb_val], all_idx[nb_val: nb_val + nb_test], all_idx[nb_val + nb_test:]
+        med_y = torch.LongTensor(med_y)
+
+        all_idx = np.arange(len(dur_id))
+        np.random.shuffle(all_idx)
+        all_idx = all_idx.tolist()
+        nb_val = round(0.10 * len(all_idx))
+        nb_test = round(0.20 * len(all_idx))
+        dur_val, dur_test, dur_train = all_idx[:nb_val], all_idx[nb_val: nb_val + nb_test], all_idx[nb_val + nb_test:]
+        dur_y = torch.LongTensor(dur_y)
+
+        adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
         if not use_feats:
-            features1 = sp.coo_matrix(sp.eye(adj1.shape[0]))
-        y1 = torch.LongTensor(y1)
+            features = sp.coo_matrix(sp.eye(graph.shape[0]))
 
-        all_idx2 = np.arange(len(y2))
-        np.random.shuffle(all_idx2)
-        all_idx2 = all_idx2.tolist()
-        nb_val = round(0.10 * len(all_idx2))
-        nb_test = round(0.20 * len(all_idx2))
-        idx_val2, idx_test2, idx_train2 = all_idx2[:nb_val], all_idx2[nb_val: nb_val + nb_test], all_idx2[
-                                                                                                 nb_val + nb_test:]
-        adj2 = nx.adjacency_matrix(nx.from_dict_of_lists(graph2))
-        if not use_feats:
-            features2 = sp.coo_matrix(sp.eye(adj2.shape[0]))
-        y2 = torch.LongTensor(y2)
-
-        all_idx3 = np.arange(len(y3))
-        np.random.shuffle(all_idx3)
-        all_idx3 = all_idx3.tolist()
-        nb_val = round(0.10 * len(all_idx3))
-        nb_test = round(0.20 * len(all_idx3))
-        idx_val3, idx_test3, idx_train3 = all_idx3[:nb_val], all_idx3[nb_val: nb_val + nb_test], all_idx3[
-                                                                                                 nb_val + nb_test:]
-        adj3 = nx.adjacency_matrix(nx.from_dict_of_lists(graph3))
-        if not use_feats:
-            features3 = sp.coo_matrix(sp.eye(adj3.shape[0]))
-        y3 = torch.LongTensor(y3)
-
-        data = {'adj1': adj1, 'x1': features1, 'y1': y1,
-                'idx_train1': idx_train1, 'idx_val1': idx_val1, 'idx_test1': idx_test1,
-                'adj2': adj2, 'x2': features2, 'y2': y2,
-                'idx_train2': idx_train2, 'idx_val2': idx_val2, 'idx_test2': idx_test2,
-                'adj3': adj3, 'x3': features3, 'y3': y3,
-                'idx_train3': idx_train3, 'idx_val3': idx_val3, 'idx_tes3': idx_test3}
+        data = {'adj': adj, 'x': features, 'dis_id': dis_id, 'med_id': med_id, 'dur_id': dur_id,
+                'dis_y': dis_y, 'dis_train': dis_train, 'dis_val': dis_val, 'dis_test': dis_test,
+                'med_y': med_y, 'med_train': med_train, 'med_val': med_val, 'med_test': med_test,
+                'dur_y': dur_y, 'dur_train': dur_train, 'dur_val': dur_val, 'dur_test': dur_test,
+                }
     else:
         data = None
     return data

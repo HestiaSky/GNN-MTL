@@ -1,4 +1,4 @@
-from sklearn.metrics import accuracy_score, f1_score, roc_curve, auc
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_curve, auc
 import numpy as np
 import torch
 import scipy
@@ -7,6 +7,20 @@ import scipy
 def format_metrics(metrics, split):
     return " ".join(
         ["{}_{}: {:.4f}".format(split, metric_name, metric_val) for metric_name, metric_val in metrics.items()])
+
+
+def acc_f1(output, labels, average='binary'):
+    output = torch.sigmoid(output)
+    if output.is_cuda:
+        output = output.detach().cpu()
+        labels = labels.detach().cpu()
+    output = (output > 0.5).long()
+    labels = labels.long()
+    accuracy = accuracy_score(labels, output, average=average)
+    precision = precision_score(labels, output, average=average)
+    recall = recall_score(labels, output, average=average)
+    f1 = f1_score(labels, output, average=average)
+    return accuracy, precision, recall, f1
 
 
 def nc_metrics(output, labels, n_classes):
@@ -18,7 +32,6 @@ def nc_metrics(output, labels, n_classes):
     r5 = recall_at_k(output, labels, 5)
     output = (output > 0.5).long()
     labels = labels.long()
-    accuracy = accuracy_score(labels, output)
     f1_micro = f1_score(labels, output, average='micro')
     f1_macro = f1_score(labels, output, average='macro')
     labels = np.array(labels)
@@ -30,7 +43,7 @@ def nc_metrics(output, labels, n_classes):
         fpr, tpr, _ = roc_curve(labels[:, i], output[:, i])
         aucs.append(auc(fpr, tpr))
     auc_macro = np.mean(aucs)
-    return accuracy, f1_micro, f1_macro, auc_micro, auc_macro, p5, r5
+    return f1_micro, f1_macro, auc_micro, auc_macro, p5, r5
 
 
 def precision_at_k(logits, y, k):
