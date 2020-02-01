@@ -52,7 +52,6 @@ class SpGraphAttentionLayer(nn.Module):
         # edge_e: E
 
         h_prime = torch.spmm(torch.sparse_coo_tensor(edge, edge_e), h)
-        print(torch.isnan(h_prime).long().sum())
         assert not torch.isnan(h_prime).any()
         # h_prime: N x out
 

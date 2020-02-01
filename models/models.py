@@ -104,8 +104,8 @@ class EAModel(BaseModel):
     def get_neg(self, ILL, output, k):
         neg = []
         t = len(ILL)
-        ILL_vec = np.array([output[e].detach().numpy() for e in ILL])
-        KG_vec = np.array(output.detach())
+        ILL_vec = np.array([output[e].detach().cpu().numpy() for e in ILL])
+        KG_vec = np.array(output.detach().cpu())
         sim = scipy.spatial.distance.cdist(ILL_vec, KG_vec, metric='cityblock')
         for i in range(t):
             rank = sim[i, :].argsort()
@@ -134,13 +134,15 @@ class EAModel(BaseModel):
         B = torch.sum(torch.abs(neg_l_x - neg_r_x), 1)
         C = - torch.reshape(B, [t, k])
         L2 = F.relu(torch.add(C, torch.reshape(D, [t, 1])))
-        return (L1.sum() + L2.sum()) / (2.0 * t * k)
+        return (torch.sum(L1) + torch.sum(L2)) / (2.0 * t * k)
 
     def compute_metrics(self, outputs, data, split):
         if split == 'train':
             pair = data['train']
         else:
             pair = data['test']
+        if outputs.is_cuda:
+            outputs = outputs.cpu()
         return get_hits(outputs, pair)
 
     def has_improved(self, m1, m2):

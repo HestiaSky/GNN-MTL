@@ -26,7 +26,8 @@ config_args = {
     'min-epochs': 100,
     'use_feats': 0,
     'bias': 1,
-    'neg_num': 125
+    'neg_num': 125,
+    'save': 0
 }
 
 parser = argparse.ArgumentParser()

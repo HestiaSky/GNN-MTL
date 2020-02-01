@@ -11,13 +11,13 @@ def format_metrics(metrics, split):
 
 def nc_metrics(output, labels, n_classes):
     output = torch.sigmoid(output)
+    if output.is_cuda:
+        output = output.detach().cpu()
+        labels = labels.detach().cpu()
     p5 = precision_at_k(output, labels, 5)
     r5 = recall_at_k(output, labels, 5)
     output = (output > 0.5).long()
     labels = labels.long()
-    if output.is_cuda:
-        output = output.cpu()
-        labels = labels.cpu()
     accuracy = accuracy_score(labels, output)
     f1_micro = f1_score(labels, output, average='micro')
     f1_macro = f1_score(labels, output, average='macro')

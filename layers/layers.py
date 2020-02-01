@@ -63,6 +63,9 @@ class HighWayGraphConvolution(GraphConvolution):
         init_range = np.sqrt(2.0 / (d + d))
         kernel_gate = torch.FloatTensor(d, d).uniform_(-init_range, init_range)
         bias_gate = torch.zeros([d])
+        if x.is_cuda():
+            kernel_gate = kernel_gate.cuda()
+            bias_gate = bias_gate.cuda()
         transform_gate = torch.spmm(x, kernel_gate) + bias_gate
         transform_gate = torch.sigmoid(transform_gate)
         carry_gate = 1.0 - transform_gate
