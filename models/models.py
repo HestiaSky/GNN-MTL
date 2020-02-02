@@ -209,13 +209,150 @@ class MultitaskNCModel1(BaseModel):
         return alpha_pos * pos + alpha_neg * neg
 
     def decode(self, h, adj):
-        output_dis = self.decoder_dis.decode(h, adj)
+        output = self.decoder_dis.decode(h, adj)
         output_med = self.decoder_med.decode(h, adj)
         output_dur = self.decoder_dur.decode(h, adj)
-        output = torch.empty(output_dur.shape[0], output_dis.shape[1])
-        if output_dis.is_cuda:
-            output = output.cuda()
-        output[self.dis_id] = output_dis[self.dis_id]
+
+        output[self.med_id] = output_med[self.med_id]
+        output[self.dur_id] = output_dur[self.dur_id]
+        return output
+
+    def get_loss(self, outputs, data, split):
+        dis_split = data[f'dis_{split}']
+        dis_outputs = outputs[self.dis_id][dis_split]
+        dis_labels = data['dis_y'][dis_split]
+        loss_dis = F.binary_cross_entropy_with_logits(dis_outputs, dis_labels.float(), self.weights_dis[dis_split])
+
+        med_split = data[f'med_{split}']
+        med_outputs = outputs[self.med_id][med_split]
+        med_labels = data['med_y'][med_split]
+        loss_med = F.binary_cross_entropy_with_logits(med_outputs, med_labels.float(), self.weights_med[med_split])
+
+        dur_split = data[f'dur_{split}']
+        dur_outputs = outputs[self.dur_id][dur_split][:, 0]
+        dur_labels = data['dur_y'][dur_split]
+        loss_dur = F.binary_cross_entropy_with_logits(dur_outputs, dur_labels.float(), self.weights_dur[dur_split])
+        return loss_dis + loss_med + loss_dur
+
+    def compute_metrics(self, outputs, data, split):
+        dis_split = data[f'dis_{split}']
+        dis_outputs = outputs[self.dis_id][dis_split]
+        dis_labels = data['dis_y'][dis_split]
+        f1_micro_dis, f1_macro_dis, auc_micro_dis, auc_macro_dis, p5_dis, r5_dis = \
+            nc_metrics(dis_outputs, dis_labels, 50)
+
+        med_split = data[f'med_{split}']
+        med_outputs = outputs[self.med_id][med_split]
+        med_labels = data['med_y'][med_split]
+        f1_micro_med, f1_macro_med, auc_micro_med, auc_macro_med, p5_med, r5_med = \
+            nc_metrics(med_outputs, med_labels, 50)
+
+        dur_split = data[f'dur_{split}']
+        dur_outputs = outputs[self.dur_id][dur_split][:, 0]
+        dur_labels = data['dur_y'][dur_split]
+        acc, pre, rec, f1 = acc_f1(dur_outputs, dur_labels)
+
+        metrics = {'f1_micro_dis': f1_micro_dis, 'f1_macro_dis': f1_macro_dis,
+                   'auc_micro_dis': auc_micro_dis, 'auc_macro_dis': auc_macro_dis,
+                   'p@5_dis': p5_dis, 'r@5_dis': r5_dis,
+                   'f1_micro_med': f1_micro_med, 'f1_macro_med': f1_macro_med,
+                   'auc_micro_med': auc_micro_med, 'auc_macro_med': auc_macro_med,
+                   'p@5_med': p5_med, 'r@5_med': r5_med,
+                   'acc_dur': acc, 'pre_dur': pre, 'rec_dur': rec, 'f1_dur': f1}
+        return metrics
+
+    def has_improved(self, m1, m2):
+        return m1['auc_macro_dis'] < m2['auc_macro_dis']
+
+    def init_metric_dict(self):
+        return {'f1_micro_dis': -1, 'f1_macro_dis': -1,
+                'auc_micro_dis': -1, 'auc_macro_dis': -1,
+                'p@5_dis': -1, 'r@5_dis': -1,
+                'f1_micro_med': -1, 'f1_macro_med': -1,
+                'auc_micro_med': -1, 'auc_macro_med': -1,
+                'p@5_med': -1, 'r@5_med': -1,
+                'acc_dur': -1, 'pre_dur': -1, 'rec_dur': -1, 'f1_dur': -1}
+
+
+class MultitaskNCModel2(BaseModel):
+    # Model for Multi-task Node Classification Task
+
+    def __init__(self, args):
+        super(MultitaskNCModel2, self).__init__(args)
+        self.dis_id = args.data['dis_id']
+        self.med_id = args.data['med_id']
+        self.dur_id = args.data['dur_id']
+        self.encoder_dis = model2encoder[args.model](args)
+        self.encoder_med = model2encoder[args.model](args)
+        self.encoder_dur = model2encoder[args.model](args)
+        args.n_classes = 50
+        self.decoder_dis = model2decoder[args.model](args)
+        self.decoder_med = model2decoder[args.model](args)
+        args.n_classes = 1
+        self.decoder_dur = model2decoder[args.model](args)
+        # Calculate Weight Matrix to balance samples
+        dis_y = args.data['dis_y']
+        self.weights_dis = self.get_weights(dis_y)
+        med_y = args.data['med_y']
+        self.weights_med = self.get_weights(med_y)
+        dur_y = args.data['dur_y']
+        self.weights_dur = self.get_weights(dur_y)
+        if not args.cuda == -1:
+            self.weights_dis = self.weights_dis.to(args.device)
+            self.weights_med = self.weights_med.to(args.device)
+            self.weights_dur = self.weights_dur.to(args.device)
+        d = args.dim
+        init_range = np.sqrt(4.0 / (d + d))
+        self.kernel_gate = torch.FloatTensor(d, d).uniform_(-init_range, init_range)
+        self.bias_gate = torch.zeros([d])
+        if not args.cuda == -1:
+            self.kernel_gate = self.kernel_gate.to(args.device)
+            self.bias_gate = self.bias_gate.to(args.device)
+
+    def get_weights(self, data):
+        pos = (data.long() == 1).float()
+        neg = (data.long() == 0).float()
+        alpha_pos = []
+        alpha_neg = []
+        if len(data.shape) > 1:
+            for i in range(data.shape[1]):
+                num_pos = torch.sum(data.long()[:, i] == 1).float()
+                num_neg = torch.sum(data.long()[:, i] == 0).float()
+                num_total = num_pos + num_neg
+                alpha_pos.append(num_neg / num_total)
+                alpha_neg.append(num_pos / num_total)
+        else:
+            num_pos = torch.sum(data.long() == 1).float()
+            num_neg = torch.sum(data.long() == 0).float()
+            num_total = num_pos + num_neg
+            alpha_pos = num_neg / num_total
+            alpha_neg = num_pos / num_total
+        alpha_pos = torch.Tensor([alpha_pos] * data.shape[0])
+        alpha_neg = torch.Tensor([alpha_neg] * data.shape[0])
+        return alpha_pos * pos + alpha_neg * neg
+
+    def encode(self, x, adj):
+        h = self.encoder.encode(x, adj)
+        h_dis = self.encoder_dis.encode(x, adj)
+        h_med = self.encoder_med.encode(x, adj)
+        h_dur = self.encoder_dur.encode(x, adj)
+        return [h, h_dis, h_med, h_dur]
+
+    def decode(self, h, adj):
+        h, h_dis, h_med, h_dur = tuple(h)
+        transform_gate = torch.spmm(h, self.kernel_gate) + self.bias_gate
+        transform_gate = torch.sigmoid(transform_gate)
+        carry_gate = 1.0 - transform_gate
+        if h.is_sparse:
+            h = h.to_dense()
+        h_dis = transform_gate * h_dis + carry_gate * h
+        h_med = transform_gate * h_med + carry_gate * h
+        h_dur = transform_gate * h_dur + carry_gate * h
+
+        output = self.decoder_dis.decode(h_dis, adj)
+        output_med = self.decoder_med.decode(h_med, adj)
+        output_dur = self.decoder_dur.decode(h_dur, adj)
+
         output[self.med_id] = output_med[self.med_id]
         output[self.dur_id] = output_dur[self.dur_id]
         return output
