@@ -6,7 +6,7 @@ from config import parser
 
 from utils.data_utils import *
 from utils.eval_utils import format_metrics
-from models.models import NCModel, EAModel, MultitaskNCModel1
+from models.models import NCModel, EAModel, MultitaskNCModel1, MultitaskNCModel2
 
 
 def train(args):
@@ -28,8 +28,11 @@ def train(args):
         Model = NCModel
         args.n_classes = len(data['y'][0])
         print(f'Num Labels: {args.n_classes}')
-    elif args.task == 'nc' and args.dataset in ['multitask1', 'multitask2']:
+    elif args.task == 'nc' and args.dataset == 'multitask1':
         Model = MultitaskNCModel1
+        print(f'Multitask Model: {args.dataset}')
+    elif args.task == 'nc' and args.dataset == 'multitask2':
+        Model = MultitaskNCModel2
         print(f'Multitask Model: {args.dataset}')
     elif args.task == 'ea':
         Model = EAModel

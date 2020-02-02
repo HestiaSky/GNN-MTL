@@ -49,7 +49,7 @@ class HighWayGraphConvolution(GraphConvolution):
         super(HighWayGraphConvolution, self).__init__(in_features, out_features, dropout, act, use_bias)
         assert (self.in_features == self.out_features)
         d = self.in_features
-        init_range = np.sqrt(6.0 / (d + d))
+        init_range = np.sqrt(2.0 * (d / 100) / (d + d))
         self.kernel_gate = torch.FloatTensor(d, d).uniform_(-init_range, init_range)
         self.bias_gate = torch.zeros([d])
 
@@ -63,7 +63,7 @@ class HighWayGraphConvolution(GraphConvolution):
             support = torch.mm(adj, hidden)
         support = self.act(support)
 
-        if x.is_cuda():
+        if x.is_cuda:
             self.kernel_gate = self.kernel_gate.cuda()
             self.bias_gate = self.bias_gate.cuda()
         transform_gate = torch.spmm(x, self.kernel_gate) + self.bias_gate
