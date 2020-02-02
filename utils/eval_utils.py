@@ -16,7 +16,7 @@ def acc_f1(output, labels, average='binary'):
         labels = labels.detach().cpu()
     output = (output > 0.5).long()
     labels = labels.long()
-    accuracy = accuracy_score(labels, output, average=average)
+    accuracy = accuracy_score(labels, output)
     precision = precision_score(labels, output, average=average)
     recall = recall_score(labels, output, average=average)
     f1 = f1_score(labels, output, average=average)

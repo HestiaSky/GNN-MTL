@@ -60,12 +60,12 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
 
 def load_data_nc(dataset, use_feats):
     if dataset in ['dis', 'med', 'dur']:
-        names = ['y', 'graph']
+        names = ['x', 'y', 'graph']
         objects = []
         for i in range(len(names)):
             with open(os.path.join("data/mimic/{}/{}_{}.pkl".format(dataset, dataset, names[i])), 'rb') as f:
                 objects.append(pkl.load(f))
-        y, graph = tuple(objects)
+        features, y, graph = tuple(objects)
         all_idx = np.arange(len(y))
         np.random.shuffle(all_idx)
         all_idx = all_idx.tolist()
@@ -76,8 +76,7 @@ def load_data_nc(dataset, use_feats):
         if not use_feats:
             features = sp.coo_matrix(sp.eye(adj.shape[0]))
         y = torch.LongTensor(y)
-        data = {'adj': adj, 'x': features, 'y': y, 'idx_train': idx_train, 'idx_val': idx_val,
-                'idx_test': idx_test}
+        data = {'adj': adj, 'x': features, 'y': y, 'idx_train': idx_train, 'idx_val': idx_val, 'idx_test': idx_test}
 
     elif dataset in ['multitask1', 'multitask2']:
         datapath = ['dis', 'med', 'dur']
@@ -89,14 +88,16 @@ def load_data_nc(dataset, use_feats):
                     objects.append(pkl.load(f))
         with open("data/mimic/multitask/graph.pkl", 'rb') as f:
             objects.append(pkl.load(f))
-        dis_id, dis_y, med_id, med_y, dur_id, dur_y, graph = tuple(objects)
+        with open("data/mimic/multitask/features.pkl", 'rb') as f:
+            objects.append(pkl.load(f))
+        dis_id, dis_y, med_id, med_y, dur_id, dur_y, graph, features = tuple(objects)
 
         all_idx = np.arange(len(dis_id))
         np.random.shuffle(all_idx)
         all_idx = all_idx.tolist()
         nb_val = round(0.10 * len(all_idx))
         nb_test = round(0.20 * len(all_idx))
-        dis_val, dis_test, dis_train = all_idx[:nb_val], all_idx[nb_val: nb_val+nb_test], all_idx[nb_val+nb_test:]
+        dis_val, dis_test, dis_train = all_idx[:nb_val], all_idx[nb_val: nb_val + nb_test], all_idx[nb_val + nb_test:]
         dis_y = torch.LongTensor(dis_y)
 
         all_idx = np.arange(len(med_id))
@@ -117,13 +118,12 @@ def load_data_nc(dataset, use_feats):
 
         adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
         if not use_feats:
-            features = sp.coo_matrix(sp.eye(graph.shape[0]))
+            features = sp.coo_matrix(sp.eye(adj.shape[0]))
 
         data = {'adj': adj, 'x': features, 'dis_id': dis_id, 'med_id': med_id, 'dur_id': dur_id,
                 'dis_y': dis_y, 'dis_train': dis_train, 'dis_val': dis_val, 'dis_test': dis_test,
                 'med_y': med_y, 'med_train': med_train, 'med_val': med_val, 'med_test': med_test,
-                'dur_y': dur_y, 'dur_train': dur_train, 'dur_val': dur_val, 'dur_test': dur_test,
-                }
+                'dur_y': dur_y, 'dur_train': dur_train, 'dur_val': dur_val, 'dur_test': dur_test}
     else:
         data = None
     return data

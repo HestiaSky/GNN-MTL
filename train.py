@@ -72,14 +72,8 @@ def train(args):
         if args.task == 'ea' and epoch % 50 == 0:
             model.neg_right = model.get_neg(data['train'][:, 0], outputs, args.neg_num)
             model.neg2_left = model.get_neg(data['train'][:, 1], outputs, args.neg_num)
-        if args.task == 'nc' and args.dataset in ['multitask1', 'multitask2']:
-            loss_dis, loss_med, loss_dur = model.get_loss(outputs, data, 'train')
-            loss_dis.backward()
-            loss_med.backward()
-            loss_dur.backward()
-        else:
-            loss = model.get_loss(outputs, data, 'train')
-            loss.backward()
+        loss = model.get_loss(outputs, data, 'train')
+        loss.backward()
         optimizer.step()
         lr_scheduler.step()
         if (epoch + 1) % args.log_freq == 0:
