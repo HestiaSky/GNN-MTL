@@ -61,7 +61,7 @@ class HGCN(Encoder):
         for i in range(len(dims) - 1):
             in_dim, out_dim = dims[i], dims[i + 1]
             act = acts[i]
-            gc_layers.append(HighWayGraphConvolution(in_dim, out_dim, args.dropout, act, args.bias))
+            gc_layers.append(HighWayGraphConvolution(in_dim, out_dim, args.dropout, act, args.bias, args.cuda, args.device))
         self.layers = nn.Sequential(*gc_layers)
         self.encode_graph = True
 

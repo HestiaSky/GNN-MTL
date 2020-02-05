@@ -45,13 +45,16 @@ class GraphConvolution(Module):
 class HighWayGraphConvolution(GraphConvolution):
     # GCN Layer with HighWay Gate
 
-    def __init__(self, in_features, out_features, dropout, act, use_bias):
+    def __init__(self, in_features, out_features, dropout, act, use_bias, cuda, device):
         super(HighWayGraphConvolution, self).__init__(in_features, out_features, dropout, act, use_bias)
         assert (self.in_features == self.out_features)
         d = self.in_features
         init_range = np.sqrt(2.0 * (d / 100) / (d + d))
         self.kernel_gate = torch.FloatTensor(d, d).uniform_(-init_range, init_range)
         self.bias_gate = torch.zeros([d])
+        if not cuda == -1:
+            self.kernel_gate = self.kernel_gate.to(device)
+            self.bias_gate = self.bias_gate.to(device)
 
     def forward(self, input):
         x, adj = input
@@ -63,9 +66,6 @@ class HighWayGraphConvolution(GraphConvolution):
             support = torch.mm(adj, hidden)
         support = self.act(support)
 
-        '''if x.is_cuda:
-            self.kernel_gate = self.kernel_gate.cuda()
-            self.bias_gate = self.bias_gate.cuda()
         transform_gate = torch.spmm(x, self.kernel_gate) + self.bias_gate
         transform_gate = torch.sigmoid(transform_gate)
         carry_gate = 1.0 - transform_gate
@@ -73,8 +73,8 @@ class HighWayGraphConvolution(GraphConvolution):
             residual = x.to_dense()
         else:
             residual = x
-        output = transform_gate * support + carry_gate * residual, adj'''
-        output = 0.98 * support + 0.02 * x, adj
+        output = transform_gate * support + carry_gate * residual, adj
+        # output = 0.98 * support + 0.02 * x, adj
         return output
 
     def extra_repr(self):

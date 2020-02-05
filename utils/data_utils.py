@@ -72,7 +72,10 @@ def load_data_nc(dataset, use_feats):
         nb_val = round(0.10 * len(all_idx))
         nb_test = round(0.20 * len(all_idx))
         idx_val, idx_test, idx_train = all_idx[:nb_val], all_idx[nb_val: nb_val+nb_test], all_idx[nb_val+nb_test:]
-        adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
+        adj = nx.from_dict_of_lists(graph)
+        selfloop = [(x, x) for x in range(len(graph.keys()))]
+        adj = adj.add_edges_from(selfloop)
+        adj = nx.adjacency_matrix(adj)
         if not use_feats:
             features = sp.coo_matrix(sp.eye(adj.shape[0]))
         y = torch.LongTensor(y)
@@ -116,7 +119,10 @@ def load_data_nc(dataset, use_feats):
         dur_val, dur_test, dur_train = all_idx[:nb_val], all_idx[nb_val: nb_val + nb_test], all_idx[nb_val + nb_test:]
         dur_y = torch.LongTensor(dur_y)
 
-        adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
+        adj = nx.from_dict_of_lists(graph)
+        selfloop = [(x, x) for x in range(len(graph.keys()))]
+        adj = adj.add_edges_from(selfloop)
+        adj = nx.adjacency_matrix(adj)
         if not use_feats:
             features = sp.coo_matrix(sp.eye(adj.shape[0]))
 

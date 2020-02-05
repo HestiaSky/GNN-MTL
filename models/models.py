@@ -318,6 +318,20 @@ class MultitaskNCModel2(BaseModel):
             self.bias_gate_med = self.bias_gate_med.to(args.device)
             self.kernel_gate_dur = self.kernel_gate_dur.to(args.device)
             self.bias_gate_dur = self.bias_gate_dur.to(args.device)
+        x = args.data['x'].cpu().to_dense()
+        x_dis = torch.zeros(x.shape[0], x.shape[1])
+        x_med = torch.zeros(x.shape[0], x.shape[1])
+        x_dur = torch.zeros(x.shape[0], x.shape[1])
+        x_dis[self.dis_id] = x[self.dis_id]
+        x_med[self.med_id] = x[self.med_id]
+        x_dur[self.dur_id] = x[self.dur_id]
+        self.x_dis = x_dis.to_sparse()
+        self.x_med = x_med.to_sparse()
+        self.x_dur = x_dur.to_sparse()
+        if not args.cuda == -1:
+            self.x_dis = self.x_dis.to(args.device)
+            self.x_med = self.x_med.to(args.device)
+            self.x_dur = self.x_dur.to(args.device)
 
     def get_weights(self, data):
         pos = (data.long() == 1).float()
@@ -343,15 +357,9 @@ class MultitaskNCModel2(BaseModel):
 
     def encode(self, x, adj):
         h = self.encoder.encode(x, adj)
-        x_dis = torch.zeros(x.shape[0], x.shape[1])
-        x_dis[self.dis_id] = x[self.dis_id]
-        h_dis = self.encoder_dis.encode(x_dis, adj)
-        x_med = torch.zeros(x.shape[0], x.shape[1])
-        x_med[self.med_id] = x[self.med_id]
-        h_med = self.encoder_med.encode(x_med, adj)
-        x_dur = torch.zeros(x.shape[0], x.shape[1])
-        x_dur[self.dur_id] = x[self.dur_id]
-        h_dur = self.encoder_dur.encode(x_dur, adj)
+        h_dis = self.encoder_dis.encode(self.x_dis, adj)
+        h_med = self.encoder_med.encode(self.x_med, adj)
+        h_dur = self.encoder_dur.encode(self.x_dur, adj)
         return [h, h_dis, h_med, h_dur]
 
     def decode(self, h, adj):
@@ -397,7 +405,7 @@ class MultitaskNCModel2(BaseModel):
         dur_outputs = outputs_dur[self.dur_id][dur_split][:, 0]
         dur_labels = data['dur_y'][dur_split]
         loss_dur = F.binary_cross_entropy_with_logits(dur_outputs, dur_labels.float(), self.weights_dur[dur_split])
-        return 0.8 * loss_dis + 0.1 * loss_med + 0.1 * loss_dur
+        return 1 * loss_dis + 1 * loss_med + 1 * loss_dur
 
     def compute_metrics(self, outputs, data, split):
         outputs_dis, outputs_med, outputs_dur = tuple(outputs)
