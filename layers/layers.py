@@ -63,7 +63,7 @@ class HighWayGraphConvolution(GraphConvolution):
             support = torch.mm(adj, hidden)
         support = self.act(support)
 
-        if x.is_cuda:
+        '''if x.is_cuda:
             self.kernel_gate = self.kernel_gate.cuda()
             self.bias_gate = self.bias_gate.cuda()
         transform_gate = torch.spmm(x, self.kernel_gate) + self.bias_gate
@@ -73,7 +73,8 @@ class HighWayGraphConvolution(GraphConvolution):
             residual = x.to_dense()
         else:
             residual = x
-        output = transform_gate * support + carry_gate * residual, adj
+        output = transform_gate * support + carry_gate * residual, adj'''
+        output = 0.98 * support + 0.02 * x, adj
         return output
 
     def extra_repr(self):

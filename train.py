@@ -10,7 +10,6 @@ from models.models import NCModel, EAModel, MultitaskNCModel1, MultitaskNCModel2
 
 
 def train(args):
-    seed = 10086
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     args.device = 'cuda:' + str(args.cuda) if int(args.cuda) >= 0 else 'cpu'
@@ -94,8 +93,8 @@ def train(args):
                             format_metrics(val_metrics, 'val')]))
             if model.has_improved(best_val_metrics, val_metrics):
                 best_test_metrics = model.compute_metrics(outputs, data, 'test')
-                best_emb = embeddings.cpu()
                 if args.save:
+                    best_emb = embeddings.cpu()
                     np.save('embeddings.npy', best_emb.detach().numpy())
                 best_val_metrics = val_metrics
                 counter = 0
