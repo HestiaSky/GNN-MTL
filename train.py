@@ -51,7 +51,7 @@ def train(args):
     )
     tot_params = sum([np.prod(p.size()) for p in model.parameters()])
     print(f'Total number of parameters: {tot_params}')
-    if args.cuda is not None and int(args.cuda) >= 0 :
+    if args.cuda is not None and int(args.cuda) >= 0:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda)
         model = model.to(args.device)
         for x, val in data.items():

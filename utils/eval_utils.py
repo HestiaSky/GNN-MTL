@@ -28,22 +28,14 @@ def nc_metrics(output, labels, n_classes):
     if output.is_cuda:
         output = output.detach().cpu()
         labels = labels.detach().cpu()
+    roc_auc = auc_metrics(np.array(output), np.array(labels.long()), np.array(labels.long()).ravel())
     p5 = precision_at_k(output, labels, 5)
     r5 = recall_at_k(output, labels, 5)
     output = (output > 0.5).long()
     labels = labels.long()
     f1_micro = f1_score(labels, output, average='micro')
     f1_macro = f1_score(labels, output, average='macro')
-    labels = np.array(labels)
-    output = np.array(output)
-    fpr, tpr, _ = roc_curve(labels.ravel(), output.ravel())
-    auc_micro = auc(fpr, tpr)
-    aucs = []
-    for i in range(n_classes):
-        fpr, tpr, _ = roc_curve(labels[:, i], output[:, i])
-        aucs.append(auc(fpr, tpr))
-    auc_macro = np.mean(aucs)
-    return f1_micro, f1_macro, auc_micro, auc_macro, p5, r5
+    return f1_micro, f1_macro, roc_auc['auc_micro'], roc_auc['auc_macro'], p5, r5
 
 
 def precision_at_k(logits, y, k):
@@ -107,3 +99,36 @@ def get_hits(vec, test_pair, top_k=(1, 10, 50, 100)):
         metric_name, metric_val = 'Hits@{}_r'.format(top_k[i]), top_rl[i] / len(test_pair) * 100
         metrics[metric_name] = metric_val
     return metrics
+
+
+def auc_metrics(yhat_raw, y, ymic):
+    if yhat_raw.shape[0] <= 1:
+        return
+    fpr = {}
+    tpr = {}
+    roc_auc = {}
+    #get AUC for each label individually
+    relevant_labels = []
+    auc_labels = {}
+    for i in range(y.shape[1]):
+        #only if there are true positives for this label
+        if y[:,i].sum() > 0:
+            fpr[i], tpr[i], _ = roc_curve(y[:,i], yhat_raw[:,i])
+            if len(fpr[i]) > 1 and len(tpr[i]) > 1:
+                auc_score = auc(fpr[i], tpr[i])
+                if not np.isnan(auc_score):
+                    auc_labels["auc_%d" % i] = auc_score
+                    relevant_labels.append(i)
+
+    #macro-AUC: just average the auc scores
+    aucs = []
+    for i in relevant_labels:
+        aucs.append(auc_labels['auc_%d' % i])
+    roc_auc['auc_macro'] = np.mean(aucs)
+
+    #micro-AUC: just look at each individual prediction
+    yhatmic = yhat_raw.ravel()
+    fpr["micro"], tpr["micro"], _ = roc_curve(ymic, yhatmic)
+    roc_auc["auc_micro"] = auc(fpr["micro"], tpr["micro"])
+
+    return roc_auc
