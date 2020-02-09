@@ -63,6 +63,16 @@ class MLPDecoder(Decoder):
         self.decode_adj = False
 
 
+class LinearDecoder(Decoder):
+    # Linear Decoder.
+
+    def __init__(self, args):
+        super(LinearDecoder, self).__init__()
+        layers = [Linear(2 * args.dim, args.n_classes, args.dropout, lambda x: x, args.bias)]
+        self.cls = nn.Sequential(*layers)
+        self.decode_adj = False
+
+
 model2decoder = {
     'GCN': MLPDecoder,
     'GAT': MLPDecoder,

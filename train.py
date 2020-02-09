@@ -70,7 +70,10 @@ def train(args):
         model.train()
         optimizer.zero_grad()
         embeddings = model.encode(data['x'], data['adj'])
-        embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
+        if type(embeddings) == type([]):
+            embeddings = [torch.cat([x, data['x'].to_dense()], axis=1) for x in embeddings]
+        else:
+            embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
         outputs = model.decode(embeddings, data['adj'])
         if args.task == 'ea' and epoch % 50 == 0:
             model.neg_right = model.get_neg(data['train'][:, 0], outputs, args.neg_num)
@@ -88,7 +91,10 @@ def train(args):
         if (epoch + 1) % args.eval_freq == 0:
             model.eval()
             embeddings = model.encode(data['x'], data['adj'])
-            embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
+            if type(embeddings) == type([]):
+                embeddings = [torch.cat([x, data['x'].to_dense()], axis=1) for x in embeddings]
+            else:
+                embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
             outputs = model.decode(embeddings, data['adj'])
             val_metrics = model.compute_metrics(outputs, data, 'val')
             print(' '.join(['Epoch: {:04d}'.format(epoch + 1),
@@ -112,7 +118,10 @@ def train(args):
     if not best_test_metrics:
         model.eval()
         best_emb = model.encode(data['x'], data['adj'])
-        best_emb = torch.cat([best_emb, data['x'].to_dense()], axis=1)
+        if type(best_emb) == type([]):
+            best_emb = [torch.cat([x, data['x'].to_dense()], axis=1) for x in best_emb]
+        else:
+            best_emb = torch.cat([best_emb, data['x'].to_dense()], axis=1)
         outputs = model.decode(best_emb, data['adj'])
         best_test_metrics = model.compute_metrics(outputs, data, 'test')
     print(' '.join(['Val set results:',
@@ -124,54 +133,6 @@ def train(args):
         json.dump(vars(args), open('config.json', 'w'))
         torch.save(model.state_dict(), 'model.pth')
         print(f'Saved model!')
-
-    '''print('Fine-tuning Start!')
-    embeddings = best_emb.detach()
-    from models.decoders import MLPDecoder
-    lr = MLPDecoder(args)
-    print(str(lr))
-    optimizer = torch.optim.Adam(params=lr.parameters(),
-                                 lr=args.lr, weight_decay=args.weight_decay)
-    tot_params = sum([np.prod(p.size()) for p in lr.parameters()])
-    print(f'Total number of parameters: {tot_params}')
-    if args.cuda is not None and int(args.cuda) >= 0:
-        lr = lr.to(args.device)
-    t_total = time.time()
-    counter = 0
-    best_val_metrics = model.init_metric_dict()
-    best_test_metrics = None
-
-    for epoch in range(1000):
-        t = time.time()
-        lr.train()
-        optimizer.zero_grad()
-        outputs = lr.decode(embeddings, data['adj'])
-        loss = model.get_loss(outputs, data, 'train')
-        loss.backward()
-        optimizer.step()
-        train_metrics = model.compute_metrics(outputs, data, 'train')
-        print(' '.join(['Epoch: {:04d}'.format(epoch + 1),
-                        format_metrics(train_metrics, 'train'),
-                        'time: {:.4f}s'.format(time.time() - t)]))
-        val_metrics = model.compute_metrics(outputs, data, 'val')
-        print(' '.join(['Epoch: {:04d}'.format(epoch + 1),
-                        format_metrics(val_metrics, 'val')]))
-        if model.has_improved(best_val_metrics, val_metrics):
-            best_test_metrics = model.compute_metrics(outputs, data, 'test')
-            best_val_metrics = val_metrics
-            counter = 0
-        else:
-            counter += 1
-            if counter == args.patience and epoch > args.min_epochs:
-                print("Early stopping")
-                break
-
-    print('Optimization Finished!')
-    print('Total time elapsed: {:.4f}s'.format(time.time() - t_total))
-    print(' '.join(['Val set results:',
-                    format_metrics(best_val_metrics, 'val')]))
-    print(' '.join(['Test set results:',
-                    format_metrics(best_test_metrics, 'test')]))'''
 
 
 if __name__ == "__main__":

@@ -357,15 +357,11 @@ class MultitaskNCModel2(BaseModel):
 
     def encode(self, x, adj):
         h = self.encoder.encode(x, adj)
+        if h.is_sparse:
+            h = h.to_dense()
         h_dis = self.encoder_dis.encode(self.x_dis, adj)
         h_med = self.encoder_med.encode(self.x_med, adj)
         h_dur = self.encoder_dur.encode(self.x_dur, adj)
-        return [h, h_dis, h_med, h_dur]
-
-    def decode(self, h, adj):
-        h, h_dis, h_med, h_dur = tuple(h)
-        if h.is_sparse:
-            h = h.to_dense()
 
         transform_gate = torch.spmm(h, self.kernel_gate_dis) + self.bias_gate_dis
         transform_gate = torch.sigmoid(transform_gate)
@@ -381,6 +377,11 @@ class MultitaskNCModel2(BaseModel):
         transform_gate = torch.sigmoid(transform_gate)
         carry_gate = 1.0 - transform_gate
         h_dur = transform_gate * h_dur + carry_gate * h
+
+        return [h_dis, h_med, h_dur]
+
+    def decode(self, h, adj):
+        h_dis, h_med, h_dur = tuple(h)
 
         output_dis = self.decoder_dis.decode(h_dis, adj)
         output_med = self.decoder_med.decode(h_med, adj)
@@ -405,7 +406,7 @@ class MultitaskNCModel2(BaseModel):
         dur_outputs = outputs_dur[self.dur_id][dur_split][:, 0]
         dur_labels = data['dur_y'][dur_split]
         loss_dur = F.binary_cross_entropy_with_logits(dur_outputs, dur_labels.float(), self.weights_dur[dur_split])
-        return 1 * loss_dis + 1 * loss_med + 1 * loss_dur
+        return 0.8 * loss_dis + 0.15 * loss_med + 0.05 * loss_dur
 
     def compute_metrics(self, outputs, data, split):
         outputs_dis, outputs_med, outputs_dur = tuple(outputs)
