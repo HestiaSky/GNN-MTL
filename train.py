@@ -101,9 +101,11 @@ def train(args):
                             format_metrics(val_metrics, 'val')]))
             if model.has_improved(best_val_metrics, val_metrics):
                 best_test_metrics = model.compute_metrics(outputs, data, 'test')
-                best_emb = embeddings
+                if type(embeddings) == type([]):
+                    best_emb = [x.cpu() for x in embeddings]
+                else:
+                    best_emb = x.cpu()
                 if args.save:
-                    best_emb = best_emb.cpu()
                     np.save('embeddings.npy', best_emb.detach().numpy())
                 best_val_metrics = val_metrics
                 counter = 0
