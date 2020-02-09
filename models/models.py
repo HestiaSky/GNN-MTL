@@ -249,7 +249,7 @@ class MultitaskNCModel1(BaseModel):
         dur_outputs = outputs_dur[self.dur_id][dur_split][:, 0]
         dur_labels = data['dur_y'][dur_split]
         loss_dur = F.binary_cross_entropy_with_logits(dur_outputs, dur_labels.float(), self.weights_dur[dur_split])
-        return 0.8 * loss_dis + 0.1 * loss_med + 0.1 * loss_dur
+        return 0.8 * loss_dis + 0.15 * loss_med + 0.05 * loss_dur
 
     def compute_metrics(self, outputs, data, split):
         outputs_dis, outputs_med, outputs_dur = tuple(outputs)
@@ -423,7 +423,7 @@ class MultitaskNCModel2(BaseModel):
         dur_outputs = outputs_dur[self.dur_id][dur_split][:, 0]
         dur_labels = data['dur_y'][dur_split]
         loss_dur = F.binary_cross_entropy_with_logits(dur_outputs, dur_labels.float(), self.weights_dur[dur_split])
-        return 0.8 * loss_dis + 0.15 * loss_med + 0.05 * loss_dur
+        return 0.8 * loss_dis + 0.18 * loss_med + 0.02 * loss_dur
 
     def compute_metrics(self, outputs, data, split):
         outputs_dis, outputs_med, outputs_dur = tuple(outputs)
