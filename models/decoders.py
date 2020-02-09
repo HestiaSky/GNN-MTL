@@ -52,13 +52,23 @@ class MLPDecoder(Decoder):
 
     def __init__(self, args):
         super(MLPDecoder, self).__init__()
-        dims = [args.dim, args.dim, args.dim, args.n_classes]
+        dims = [2 * args.dim, 2 * args.dim, args.dim, args.n_classes]
         acts = [getattr(F, 'relu'), getattr(F, 'relu'), lambda x: x]
         layers = []
         for i in range(len(dims) - 1):
             in_dim, out_dim = dims[i], dims[i + 1]
             act = acts[i]
             layers.append(Linear(in_dim, out_dim, args.dropout, act, args.bias))
+        self.cls = nn.Sequential(*layers)
+        self.decode_adj = False
+
+
+class LinearDecoder(Decoder):
+    # Linear Decoder.
+
+    def __init__(self, args):
+        super(LinearDecoder, self).__init__()
+        layers = [Linear(2 * args.dim, args.n_classes, args.dropout, lambda x: x, args.bias)]
         self.cls = nn.Sequential(*layers)
         self.decode_adj = False
 
