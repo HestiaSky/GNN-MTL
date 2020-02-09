@@ -47,12 +47,19 @@ class NCModel(BaseModel):
         neg = (data.long() == 0).float()
         alpha_pos = []
         alpha_neg = []
-        for i in range(data.shape[1]):
-            num_pos = torch.sum(data.long()[:, i] == 1).float()
-            num_neg = torch.sum(data.long()[:, i] == 0).float()
+        if len(data.shape) > 1:
+            for i in range(data.shape[1]):
+                num_pos = torch.sum(data.long()[:, i] == 1).float()
+                num_neg = torch.sum(data.long()[:, i] == 0).float()
+                num_total = num_pos + num_neg
+                alpha_pos.append(num_neg / num_total)
+                alpha_neg.append(num_pos / num_total)
+        else:
+            num_pos = torch.sum(data.long() == 1).float()
+            num_neg = torch.sum(data.long() == 0).float()
             num_total = num_pos + num_neg
-            alpha_pos.append(num_neg / num_total)
-            alpha_neg.append(num_pos / num_total)
+            alpha_pos = num_neg / num_total
+            alpha_neg = num_pos / num_total
         alpha_pos = torch.Tensor([alpha_pos] * data.shape[0])
         alpha_neg = torch.Tensor([alpha_neg] * data.shape[0])
         return alpha_pos * pos + alpha_neg * neg
@@ -72,17 +79,27 @@ class NCModel(BaseModel):
         idx = data[f'idx_{split}']
         outputs = outputs[idx]
         labels = data['y'][idx]
-        f1_micro, f1_macro, auc_micro, auc_macro, p5, r5 = nc_metrics(outputs, labels, self.n_classes)
-        metrics = {'f1_micro': f1_micro, 'f1_macro': f1_macro,
-                   'auc_micro': auc_micro, 'auc_macro': auc_macro, 'p@5': p5, 'r@5': r5}
+        if self.n_classes > 1:
+            f1_micro, f1_macro, auc_micro, auc_macro, p5, r5 = nc_metrics(outputs, labels, self.n_classes)
+            metrics = {'f1_micro': f1_micro, 'f1_macro': f1_macro,
+                       'auc_micro': auc_micro, 'auc_macro': auc_macro, 'p@5': p5, 'r@5': r5}
+        else:
+            acc, pre, rec, f1 = acc_f1(outputs, labels)
+            metrics = {'acc': acc, 'pre': pre, 'rec': rec, 'f1': f1}
         return metrics
 
     def has_improved(self, m1, m2):
-        return m1['auc_macro'] < m2['auc_macro']
+        if self.n_classes > 1:
+            return m1['auc_macro'] < m2['auc_macro']
+        else:
+            return m1['acc'] < m2['acc']
 
     def init_metric_dict(self):
-        return {'f1_micro': -1, 'f1_macro': -1,
-                   'auc_micro': -1, 'auc_macro': -1, 'p@5': -1, 'r@5': -1}
+        if self.n_classes > 1:
+            return {'f1_micro': -1, 'f1_macro': -1,
+                    'auc_micro': -1, 'auc_macro': -1, 'p@5': -1, 'r@5': -1}
+        else:
+            return {'acc': -1, 'pre': -1, 'rec': -1, 'f1': -1}
 
 
 class EAModel(BaseModel):
