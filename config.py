@@ -18,7 +18,7 @@ config_args = {
     'dataset': 'multitask2',
     'normalize_x': 0,
     'normalize_adj': 1,
-    'patience': 50,
+    'patience': 50
     'log-freq': 10,
     'eval-freq': 10,
     'lr-reduce-freq': 2500,

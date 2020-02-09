@@ -357,15 +357,11 @@ class MultitaskNCModel2(BaseModel):
 
     def encode(self, x, adj):
         h = self.encoder.encode(x, adj)
+        if h.is_sparse:
+            h = h.to_dense()
         h_dis = self.encoder_dis.encode(self.x_dis, adj)
         h_med = self.encoder_med.encode(self.x_med, adj)
         h_dur = self.encoder_dur.encode(self.x_dur, adj)
-        return [h, h_dis, h_med, h_dur]
-
-    def decode(self, h, adj):
-        h, h_dis, h_med, h_dur = tuple(h)
-        if h.is_sparse:
-            h = h.to_dense()
 
         transform_gate = torch.spmm(h, self.kernel_gate_dis) + self.bias_gate_dis
         transform_gate = torch.sigmoid(transform_gate)
@@ -381,6 +377,11 @@ class MultitaskNCModel2(BaseModel):
         transform_gate = torch.sigmoid(transform_gate)
         carry_gate = 1.0 - transform_gate
         h_dur = transform_gate * h_dur + carry_gate * h
+
+        return [h_dis, h_med, h_dur]
+
+    def decode(self, h, adj):
+        h_dis, h_med, h_dur = tuple(h)
 
         output_dis = self.decoder_dis.decode(h_dis, adj)
         output_med = self.decoder_med.decode(h_med, adj)
