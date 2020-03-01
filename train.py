@@ -25,7 +25,10 @@ def train(args):
     Model = None
     if args.task == 'nc' and args.dataset in ['dis', 'med', 'dur']:
         Model = NCModel
-        args.n_classes = len(data['y'][0])
+        if len(data['y'].shape) > 1:
+            args.n_classes = data['y'].shape[1]
+        else:
+            args.n_classes = 1
         print(f'Num Labels: {args.n_classes}')
     elif args.task == 'nc' and args.dataset == 'multitask1':
         Model = MultitaskNCModel1
@@ -52,7 +55,7 @@ def train(args):
     tot_params = sum([np.prod(p.size()) for p in model.parameters()])
     print(f'Total number of parameters: {tot_params}')
     if args.cuda is not None and int(args.cuda) >= 0:
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda)
+        # os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda)
         model = model.to(args.device)
         for x, val in data.items():
             if torch.is_tensor(data[x]):
@@ -101,12 +104,12 @@ def train(args):
                             format_metrics(val_metrics, 'val')]))
             if model.has_improved(best_val_metrics, val_metrics):
                 best_test_metrics = model.compute_metrics(outputs, data, 'test')
-                if type(embeddings) == type([]):
+                '''if type(embeddings) == type([]):
                     best_emb = [x.cpu() for x in embeddings]
                 else:
                     best_emb = x.cpu()
                 if args.save:
-                    np.save('embeddings.npy', best_emb.detach().numpy())
+                    np.save('embeddings.npy', best_emb.detach().numpy())'''
                 best_val_metrics = val_metrics
                 counter = 0
             else:

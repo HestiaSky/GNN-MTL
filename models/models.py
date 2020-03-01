@@ -72,6 +72,8 @@ class NCModel(BaseModel):
         idx = data[f'idx_{split}']
         outputs = outputs[idx]
         labels = data['y'][idx]
+        if self.n_classes == 1:
+            outputs = outputs.view(-1)
         loss = F.binary_cross_entropy_with_logits(outputs, labels.float(), self.weights[idx])
         return loss
 
@@ -84,22 +86,22 @@ class NCModel(BaseModel):
             metrics = {'f1_micro': f1_micro, 'f1_macro': f1_macro,
                        'auc_micro': auc_micro, 'auc_macro': auc_macro, 'p@5': p5, 'r@5': r5}
         else:
-            acc, pre, rec, f1 = acc_f1(outputs, labels)
-            metrics = {'acc': acc, 'pre': pre, 'rec': rec, 'f1': f1}
+            acc, pre, rec, f1, auc = acc_f1(outputs, labels)
+            metrics = {'acc': acc, 'pre': pre, 'rec': rec, 'f1': f1, 'auc': auc}
         return metrics
 
     def has_improved(self, m1, m2):
         if self.n_classes > 1:
             return m1['auc_macro'] < m2['auc_macro']
         else:
-            return m1['acc'] < m2['acc']
+            return m1['auc'] < m2['auc']
 
     def init_metric_dict(self):
         if self.n_classes > 1:
             return {'f1_micro': -1, 'f1_macro': -1,
                     'auc_micro': -1, 'auc_macro': -1, 'p@5': -1, 'r@5': -1}
         else:
-            return {'acc': -1, 'pre': -1, 'rec': -1, 'f1': -1}
+            return {'acc': -1, 'pre': -1, 'rec': -1, 'f1': -1, 'auc': -1}
 
 
 class EAModel(BaseModel):
@@ -269,7 +271,7 @@ class MultitaskNCModel1(BaseModel):
         dur_split = data[f'dur_{split}']
         dur_outputs = outputs_dur[self.dur_id][dur_split][:, 0]
         dur_labels = data['dur_y'][dur_split]
-        acc, pre, rec, f1 = acc_f1(dur_outputs, dur_labels)
+        acc, pre, rec, f1, auc = acc_f1(dur_outputs, dur_labels)
 
         metrics = {'f1_micro_dis': f1_micro_dis, 'f1_macro_dis': f1_macro_dis,
                    'auc_micro_dis': auc_micro_dis, 'auc_macro_dis': auc_macro_dis,
@@ -277,7 +279,7 @@ class MultitaskNCModel1(BaseModel):
                    'f1_micro_med': f1_micro_med, 'f1_macro_med': f1_macro_med,
                    'auc_micro_med': auc_micro_med, 'auc_macro_med': auc_macro_med,
                    'p@5_med': p5_med, 'r@5_med': r5_med,
-                   'acc_dur': acc, 'pre_dur': pre, 'rec_dur': rec, 'f1_dur': f1}
+                   'acc_dur': acc, 'pre_dur': pre, 'rec_dur': rec, 'f1_dur': f1, 'auc_dur': auc}
         return metrics
 
     def has_improved(self, m1, m2):
@@ -290,7 +292,7 @@ class MultitaskNCModel1(BaseModel):
                 'f1_micro_med': -1, 'f1_macro_med': -1,
                 'auc_micro_med': -1, 'auc_macro_med': -1,
                 'p@5_med': -1, 'r@5_med': -1,
-                'acc_dur': -1, 'pre_dur': -1, 'rec_dur': -1, 'f1_dur': -1}
+                'acc_dur': -1, 'pre_dur': -1, 'rec_dur': -1, 'f1_dur': -1, 'auc_dur': -1}
 
 
 class MultitaskNCModel2(BaseModel):
@@ -423,7 +425,7 @@ class MultitaskNCModel2(BaseModel):
         dur_outputs = outputs_dur[self.dur_id][dur_split][:, 0]
         dur_labels = data['dur_y'][dur_split]
         loss_dur = F.binary_cross_entropy_with_logits(dur_outputs, dur_labels.float(), self.weights_dur[dur_split])
-        return 0.8 * loss_dis + 0.18 * loss_med + 0.02 * loss_dur
+        return 0.8 * loss_dis + 0.15 * loss_med + 0.05 * loss_dur
 
     def compute_metrics(self, outputs, data, split):
         outputs_dis, outputs_med, outputs_dur = tuple(outputs)
@@ -443,7 +445,7 @@ class MultitaskNCModel2(BaseModel):
         dur_split = data[f'dur_{split}']
         dur_outputs = outputs_dur[self.dur_id][dur_split][:, 0]
         dur_labels = data['dur_y'][dur_split]
-        acc, pre, rec, f1 = acc_f1(dur_outputs, dur_labels)
+        acc, pre, rec, f1, auc = acc_f1(dur_outputs, dur_labels)
 
         metrics = {'f1_micro_dis': f1_micro_dis, 'f1_macro_dis': f1_macro_dis,
                    'auc_micro_dis': auc_micro_dis, 'auc_macro_dis': auc_macro_dis,
@@ -451,7 +453,7 @@ class MultitaskNCModel2(BaseModel):
                    'f1_micro_med': f1_micro_med, 'f1_macro_med': f1_macro_med,
                    'auc_micro_med': auc_micro_med, 'auc_macro_med': auc_macro_med,
                    'p@5_med': p5_med, 'r@5_med': r5_med,
-                   'acc_dur': acc, 'pre_dur': pre, 'rec_dur': rec, 'f1_dur': f1}
+                   'acc_dur': acc, 'pre_dur': pre, 'rec_dur': rec, 'f1_dur': f1, 'auc_dur': auc}
         return metrics
 
     def has_improved(self, m1, m2):
@@ -464,4 +466,4 @@ class MultitaskNCModel2(BaseModel):
                 'f1_micro_med': -1, 'f1_macro_med': -1,
                 'auc_micro_med': -1, 'auc_macro_med': -1,
                 'p@5_med': -1, 'r@5_med': -1,
-                'acc_dur': -1, 'pre_dur': -1, 'rec_dur': -1, 'f1_dur': -1}
+                'acc_dur': -1, 'pre_dur': -1, 'rec_dura': -1, 'f1_dur': -1, 'auc_dur': -1}

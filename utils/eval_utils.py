@@ -14,13 +14,17 @@ def acc_f1(output, labels, average='binary'):
     if output.is_cuda:
         output = output.detach().cpu()
         labels = labels.detach().cpu()
+    yhatmic = np.array(output).ravel()
+    ymic = np.array(labels.long()).ravel()
+    fpr, tpr, _ = roc_curve(ymic, yhatmic)
+    roc_auc = auc(fpr, tpr)
     output = (output > 0.5).long()
     labels = labels.long()
     accuracy = accuracy_score(labels, output)
     precision = precision_score(labels, output, average=average)
     recall = recall_score(labels, output, average=average)
     f1 = f1_score(labels, output, average=average)
-    return accuracy, precision, recall, f1
+    return accuracy, precision, recall, f1, roc_auc
 
 
 def nc_metrics(output, labels, n_classes):
