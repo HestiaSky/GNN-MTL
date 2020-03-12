@@ -6,7 +6,7 @@ from config import parser
 
 from utils.data_utils import *
 from utils.eval_utils import format_metrics
-from models_nc.models import NCModel, EAModel, MultitaskNCModel1, MultitaskNCModel2
+from models.models_nc import NCModel, EAModel, MultitaskNCModel1, MultitaskNCModel2
 
 
 def train(args):

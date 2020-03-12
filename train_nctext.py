@@ -4,7 +4,7 @@ from config import parser
 
 from utils.data_utils import *
 from utils.eval_utils import format_metrics
-from models_nctext.models import LogisticRegression, Multilayer, BidirectionalGRU, TextCNN, HAN
+from models.models_nctext import LogisticRegression, Multilayer, BidirectionalGRU, TextCNN, HAN
 
 
 def train(args):
