@@ -27,6 +27,7 @@ config_args = {
     'use_feats': 1,
     'bias': 1,
     'neg_num': 125,
+    'batch_size': 128,
     'save': 0
 }
 

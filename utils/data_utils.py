@@ -8,18 +8,22 @@ import networkx as nx
 import numpy as np
 import scipy.sparse as sp
 import torch
+import random
 import torch.nn.functional as F
+from torchtext.data import Dataset, BucketIterator, Field, Example
 
 
 def load_data(args):
     if args.task == 'nc':
-        data = load_data_nc(args.dataset, args.use_feats)
+        if args.model in ['lr', 'mlp', 'textcnn', 'bigru', 'han']:
+            data = load_data_nctext(args)
+        else:
+            data = load_data_nc(args)
     elif args.task == 'lp':
-        data = load_data_lp(args.dataset, args.use_feats)
+        data = load_data_lp(args)
     else:
         data = load_data_ea(args.dataset)
 
-    data['x'], data['adj'] = process(data['x'], data['adj'], args.normalize_x, args.normalize_adj)
     return data
 
 
@@ -29,10 +33,8 @@ def load_data(args):
 def process(x, adj, norm_x, norm_adj):
     if norm_x:
         x = normalize(x)
-    x = sparse_mx_to_torch_sparse_tensor(x)
     if norm_adj:
         adj = normalize(adj)
-    adj = sparse_mx_to_torch_sparse_tensor(adj)
     return x, adj
 
 
@@ -58,7 +60,9 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
 # ############### Node Classification Dataloader ############### #
 
 
-def load_data_nc(dataset, use_feats):
+def load_data_nc(args):
+    dataset = args.dataset
+    use_feats = args.use_feats
     if dataset in ['dis', 'med', 'dur']:
         names = ['x', 'y', 'graph']
         objects = []
@@ -66,17 +70,22 @@ def load_data_nc(dataset, use_feats):
             with open(os.path.join("data/mimic/{}/{}_{}.pkl".format(dataset, dataset, names[i])), 'rb') as f:
                 objects.append(pkl.load(f))
         features, y, graph = tuple(objects)
+
         all_idx = np.arange(len(y))
         np.random.shuffle(all_idx)
         all_idx = all_idx.tolist()
         nb_val = round(0.10 * len(all_idx))
         nb_test = round(0.20 * len(all_idx))
         idx_val, idx_test, idx_train = all_idx[:nb_val], all_idx[nb_val: nb_val+nb_test], all_idx[nb_val+nb_test:]
+
         adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
         adj = adj + sp.eye(adj.shape[0])
         if not use_feats:
             features = sp.coo_matrix(sp.eye(adj.shape[0]))
         y = torch.LongTensor(y)
+        features = sparse_mx_to_torch_sparse_tensor(features)
+        adj = sparse_mx_to_torch_sparse_tensor(adj)
+
         data = {'adj': adj, 'x': features, 'y': y, 'idx_train': idx_train, 'idx_val': idx_val, 'idx_test': idx_test}
 
     elif dataset in ['multitask1', 'multitask2']:
@@ -121,6 +130,8 @@ def load_data_nc(dataset, use_feats):
         adj = adj + sp.eye(adj.shape[0])
         if not use_feats:
             features = sp.coo_matrix(sp.eye(adj.shape[0]))
+        features = sparse_mx_to_torch_sparse_tensor(features)
+        adj = sparse_mx_to_torch_sparse_tensor(adj)
 
         data = {'adj': adj, 'x': features, 'dis_id': dis_id, 'med_id': med_id, 'dur_id': dur_id,
                 'dis_y': dis_y, 'dis_train': dis_train, 'dis_val': dis_val, 'dis_test': dis_test,
@@ -131,11 +142,102 @@ def load_data_nc(dataset, use_feats):
     return data
 
 
+# ############### Node Classification with Text Dataloader ############### #
+
+
+def han_data(x):
+    nx = None
+    for i in range(x.size(1)):
+        sent = x[:, i]
+        sents = []
+        for j in range(round(len(sent) / 50)):
+            l = j * 50
+            r = min(l + 50, len(sent))
+            sents.append(sent[l:r])
+        sents = torch.nn.utils.rnn.pad_sequence(sents, batch_first=True)
+        sents = sents.view(-1, 1, 50)
+        if nx is None:
+            nx = sents
+        else:
+            nx = torch.cat([nx, sents], axis=1)
+    return nx
+
+
+def load_data_nctext(args):
+    dataset = args.dataset
+    names = ['x', 'y']
+    objects = []
+    for i in range(len(names)):
+        with open(os.path.join("data/{}/{}_{}.pkl".format(dataset, dataset, names[i])), 'rb') as f:
+            objects.append(pkl.load(f))
+    x, y = tuple(objects)
+
+    all_idx = np.arange(len(y))
+    np.random.shuffle(all_idx)
+    all_idx = all_idx.tolist()
+    nb_val = round(0.10 * len(all_idx))
+    nb_test = round(0.20 * len(all_idx))
+    idx_val, idx_test, idx_train = all_idx[:nb_val], all_idx[nb_val: nb_val + nb_test], all_idx[nb_val + nb_test:]
+
+    if args.model in ['bigru', 'textcnn', 'han']:
+        dataset = args.dataset
+        names = ['train', 'val', 'test']
+        objects = []
+        for i in range(len(names)):
+            with open(os.path.join("data/{}/{}.pkl".format(dataset, names[i])), 'rb') as f:
+                objects.append(pkl.load(f))
+        train, val, test = tuple(objects)
+
+        TEXT = Field(lower=True)
+        if args.dataset == 'dur':
+            LABEL = Field(sequential=False)
+        else:
+            LABEL = Field()
+        fields = [('text', TEXT), ('label', LABEL)]
+        train_examples = []
+        val_examples = []
+        test_examples = []
+        for item in train:
+            text = item[0]
+            label = item[1]
+            train_examples += [Example.fromlist([text, label], fields)]
+        for item in val:
+            text = item[0]
+            label = item[1]
+            val_examples += [Example.fromlist([text, label], fields)]
+        for item in test:
+            text = item[0]
+            label = item[1]
+            test_examples += [Example.fromlist([text, label], fields)]
+        random.shuffle(train_examples)
+        random.shuffle(val_examples)
+        random.shuffle(test_examples)
+        train_data = Dataset(train_examples, fields)
+        val_data = Dataset(val_examples, fields)
+        test_data = Dataset(test_examples, fields)
+
+        TEXT.build_vocab(train_data, min_freq=3)
+        LABEL.build_vocab(train_data)
+        train_iter, val_iter, test_iter = BucketIterator.splits((train_data, val_data, test_data),
+                                                                sort_key=lambda x: len(x.text),
+                                                                batch_sizes=(
+                                                                args.batch_size, args.batch_size, args.batch_size),
+                                                                device=args.device)
+
+        data = {'TEXT': TEXT, 'LABEL': LABEL, 'train_iter': train_iter, 'val_iter': val_iter, 'test_iter': test_iter}
+        return data
+
+    x = sparse_mx_to_torch_sparse_tensor(x)
+    y = torch.LongTensor(y)
+    data = {'x': x, 'y': y, 'idx_train': idx_train, 'idx_val': idx_val, 'idx_test': idx_test}
+    return data
+
+
 # ############### Link Prediction Dataloader ############### #
 
 
 # TODO: FB15K-237
-def load_data_lp(dataset, use_feats):
+def load_data_lp(args):
     return None
 
 
