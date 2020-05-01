@@ -1,5 +1,4 @@
 import time
-import tqdm
 from config import parser
 
 from utils.data_utils import *

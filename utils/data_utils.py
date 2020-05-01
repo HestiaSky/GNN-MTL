@@ -352,6 +352,8 @@ def load_data_ea(dataset):
 
     features = get_features(lang[0:2])
     M = get_sparse_tensor(e, KG)
+    features = sparse_mx_to_torch_sparse_tensor(features)
+    M = sparse_mx_to_torch_sparse_tensor(M)
     head, tail, head_r, tail_r = rfunc(e, KG)
     data = {'x': features, 'adj': M, 'head': head, 'tail': tail, 'head_r': head_r, 'tail_r': tail_r,
             'train': train, 'test': test, 'test_r': test_r}

@@ -43,7 +43,7 @@ class HGCNDecoder(Decoder):
     def __init__(self, args):
         super(HGCNDecoder, self).__init__()
         act = lambda x: x
-        self.cls = HighWayGraphConvolution(args.dim, args.n_classes, args.dropout, act, args.bias)
+        self.cls = HighWayGraphConvolution(args.dim, args.n_classes, args.dropout, act, args.bias, args.cuda, args.device)
         self.decode_adj = True
 
 
@@ -76,5 +76,5 @@ class LinearDecoder(Decoder):
 model2decoder = {
     'GCN': MLPDecoder,
     'GAT': MLPDecoder,
-    'HGCN': MLPDecoder,
+    'HGCN': HGCNDecoder,
 }

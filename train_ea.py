@@ -3,7 +3,7 @@ from config import parser
 
 from utils.data_utils import *
 from utils.eval_utils import format_metrics
-from models.models_nc import NCModel, MultitaskNCModel1, MultitaskNCModel2
+from models.models_ea import EAModel
 
 
 def train(args):
@@ -20,19 +20,9 @@ def train(args):
     print(f'Dim_feats: {args.feat_dim}')
     args.data = data
     Model = None
-    if args.task == 'nc' and args.dataset in ['dis', 'med', 'dur']:
-        Model = NCModel
-        if len(data['y'].shape) > 1:
-            args.n_classes = data['y'].shape[1]
-        else:
-            args.n_classes = 1
-        print(f'Num Labels: {args.n_classes}')
-    elif args.task == 'nc' and args.dataset == 'multitask1':
-        Model = MultitaskNCModel1
-        print(f'Multitask Model: {args.dataset}')
-    elif args.task == 'nc' and args.dataset == 'multitask2':
-        Model = MultitaskNCModel2
-        print(f'Multitask Model: {args.dataset}')
+    if args.task == 'ea':
+        Model = EAModel
+        args.n_classes = args.feat_dim
 
     # Model and Optimizer
     model = Model(args)
@@ -65,11 +55,10 @@ def train(args):
         model.train()
         optimizer.zero_grad()
         embeddings = model.encode(data['x'], data['adj'])
-        if type(embeddings) == type([]):
-            embeddings = [torch.cat([x, data['x'].to_dense()], axis=1) for x in embeddings]
-        else:
-            embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
         outputs = model.decode(embeddings, data['adj'])
+        if epoch % 50 == 0:
+            model.neg_right = model.get_neg(data['train'][:, 0], outputs, args.neg_num)
+            model.neg2_left = model.get_neg(data['train'][:, 1], outputs, args.neg_num)
         loss = model.get_loss(outputs, data, 'train')
         loss.backward()
         optimizer.step()
@@ -83,22 +72,12 @@ def train(args):
         if (epoch + 1) % args.eval_freq == 0:
             model.eval()
             embeddings = model.encode(data['x'], data['adj'])
-            if type(embeddings) == type([]):
-                embeddings = [torch.cat([x, data['x'].to_dense()], axis=1) for x in embeddings]
-            else:
-                embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
             outputs = model.decode(embeddings, data['adj'])
             val_metrics = model.compute_metrics(outputs, data, 'val')
             print(' '.join(['Epoch: {:04d}'.format(epoch + 1),
                             format_metrics(val_metrics, 'val')]))
             if model.has_improved(best_val_metrics, val_metrics):
                 best_test_metrics = model.compute_metrics(outputs, data, 'test')
-                '''if type(embeddings) == type([]):
-                    best_emb = [x.cpu() for x in embeddings]
-                else:
-                    best_emb = x.cpu()
-                if args.save:
-                    np.save('embeddings.npy', best_emb.detach().numpy())'''
                 best_val_metrics = val_metrics
                 counter = 0
             else:
@@ -112,10 +91,6 @@ def train(args):
     if not best_test_metrics:
         model.eval()
         best_emb = model.encode(data['x'], data['adj'])
-        if type(best_emb) == type([]):
-            best_emb = [torch.cat([x, data['x'].to_dense()], axis=1) for x in best_emb]
-        else:
-            best_emb = torch.cat([best_emb, data['x'].to_dense()], axis=1)
         outputs = model.decode(best_emb, data['adj'])
         best_test_metrics = model.compute_metrics(outputs, data, 'test')
     print(' '.join(['Val set results:',

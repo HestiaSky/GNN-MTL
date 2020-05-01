@@ -72,11 +72,11 @@ class EAModel(BaseModel):
         left_x = outputs[left]
         right_x = outputs[right]
         A = torch.sum(torch.abs(left_x - right_x), 1)
-        D = A + 1.0
         neg_l_x = outputs[self.neg_left]
         neg_r_x = outputs[self.neg_right]
         B = torch.sum(torch.abs(neg_l_x - neg_r_x), 1)
         C = - torch.reshape(B, [t, k])
+        D = A + 1.0
         L1 = F.relu(torch.add(C, torch.reshape(D, [t, 1])))
         neg_l_x = outputs[self.neg2_left]
         neg_r_x = outputs[self.neg2_right]
