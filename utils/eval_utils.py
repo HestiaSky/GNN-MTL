@@ -10,10 +10,6 @@ def format_metrics(metrics, split):
 
 
 def acc_f1(output, labels, average='binary'):
-    output = torch.sigmoid(output)
-    if output.is_cuda:
-        output = output.detach().cpu()
-        labels = labels.detach().cpu()
     yhatmic = np.array(output).ravel()
     ymic = np.array(labels.long()).ravel()
     fpr, tpr, _ = roc_curve(ymic, yhatmic)
@@ -27,11 +23,7 @@ def acc_f1(output, labels, average='binary'):
     return accuracy, precision, recall, f1, roc_auc
 
 
-def nc_metrics(output, labels, n_classes):
-    output = torch.sigmoid(output)
-    if output.is_cuda:
-        output = output.detach().cpu()
-        labels = labels.detach().cpu()
+def nc_metrics(output, labels):
     roc_auc = auc_metrics(np.array(output), np.array(labels.long()), np.array(labels.long()).ravel())
     p5 = precision_at_k(output, labels, 5)
     r5 = recall_at_k(output, labels, 5)

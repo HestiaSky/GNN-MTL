@@ -1,12 +1,11 @@
 import time
-from config import parser
 
 from utils.data_utils import *
 from utils.eval_utils import format_metrics
 from models.models_nctext import LogisticRegression, Multilayer, BidirectionalGRU, TextCNN, HAN
 
 
-def train(args):
+def train_nctext(args):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     args.device = 'cuda:' + str(args.cuda) if int(args.cuda) >= 0 else 'cpu'
@@ -182,7 +181,3 @@ def train(args):
     print(' '.join(['Test set results:',
                     format_metrics(best_test_metrics, 'test')]))
 
-
-if __name__ == "__main__":
-    args = parser.parse_args()
-    train(args)

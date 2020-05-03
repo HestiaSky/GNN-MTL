@@ -1,12 +1,11 @@
 import time
-from config import parser
 
 from utils.data_utils import *
 from utils.eval_utils import format_metrics
-from models.models_nc import NCModel, MultitaskNCModel1, MultitaskNCModel2
+from models.models_nc import NCModel, NCSparseModel, MultitaskNCModel1, MultitaskNCModel2
 
 
-def train(args):
+def train_nc(args):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     args.device = 'cuda:' + str(args.cuda) if int(args.cuda) >= 0 else 'cpu'
@@ -26,6 +25,10 @@ def train(args):
             args.n_classes = data['y'].shape[1]
         else:
             args.n_classes = 1
+        print(f'Num Labels: {args.n_classes}')
+    elif args.task == 'nc' and args.dataset == 'full':
+        Model = NCSparseModel
+        args.n_classes = data['y'].shape[1]
         print(f'Num Labels: {args.n_classes}')
     elif args.task == 'nc' and args.dataset == 'multitask1':
         Model = MultitaskNCModel1
@@ -128,7 +131,3 @@ def train(args):
         torch.save(model.state_dict(), 'model.pth')
         print(f'Saved model!')
 
-
-if __name__ == "__main__":
-    args = parser.parse_args()
-    train(args)

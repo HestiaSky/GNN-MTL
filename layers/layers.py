@@ -74,7 +74,6 @@ class HighWayGraphConvolution(GraphConvolution):
         else:
             residual = x
         output = transform_gate * support + carry_gate * residual, adj
-        # output = 0.98 * support + 0.02 * x, adj
         return output
 
     def extra_repr(self):

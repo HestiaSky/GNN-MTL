@@ -78,11 +78,15 @@ class NCModel(BaseModel):
         return loss
 
     def compute_metrics(self, outputs, data, split):
+        outputs = torch.sigmoid(outputs)
+        if outputs.is_cuda:
+            outputs = outputs.detach().cpu()
+            labels = data['y'].detach().cpu()
         idx = data[f'idx_{split}']
         outputs = outputs[idx]
-        labels = data['y'][idx]
+        labels = labels[idx]
         if self.n_classes > 1:
-            f1_micro, f1_macro, auc_micro, auc_macro, p5, r5 = nc_metrics(outputs, labels, self.n_classes)
+            f1_micro, f1_macro, auc_micro, auc_macro, p5, r5 = nc_metrics(outputs, labels)
             metrics = {'f1_micro': f1_micro, 'f1_macro': f1_macro,
                        'auc_micro': auc_micro, 'auc_macro': auc_macro, 'p@5': p5, 'r@5': r5}
         else:
@@ -102,6 +106,77 @@ class NCModel(BaseModel):
                     'auc_micro': -1, 'auc_macro': -1, 'p@5': -1, 'r@5': -1}
         else:
             return {'acc': -1, 'pre': -1, 'rec': -1, 'f1': -1, 'auc': -1}
+
+
+class NCSparseModel(BaseModel):
+    # Base Model for Node Classification Task
+
+    def __init__(self, args):
+        super(NCSparseModel, self).__init__(args)
+        self.n_classes = args.n_classes
+        self.decoder = model2decoder[args.model](args)
+        # Calculate Weight Matrix to balance samples
+        data = args.data['y']
+        self.weights = self.get_weights(data)
+        if not args.cuda == -1:
+            self.weights = self.weights.to(args.device)
+
+    def get_weights(self, data):
+        pos = (data.long() == 1).float()
+        neg = (data.long() == 0).float()
+        alpha_pos = []
+        alpha_neg = []
+        if len(data.shape) > 1:
+            for i in range(data.shape[1]):
+                num_pos = torch.sum(data.long()[:, i] == 1).float()
+                num_neg = torch.sum(data.long()[:, i] == 0).float()
+                num_total = num_pos + num_neg
+                alpha_pos.append(num_neg / num_total)
+                alpha_neg.append(num_pos / num_total)
+        else:
+            num_pos = torch.sum(data.long() == 1).float()
+            num_neg = torch.sum(data.long() == 0).float()
+            num_total = num_pos + num_neg
+            alpha_pos = num_neg / num_total
+            alpha_neg = num_pos / num_total
+        return [alpha_pos, alpha_neg]
+
+    def decode(self, h, adj):
+        output = self.decoder.decode(h, adj)
+        return output
+
+    def get_loss(self, outputs, data, split):
+        idx = data[f'idx_{split}']
+        outputs = outputs
+        labels = data['y']
+        loss = [F.binary_cross_entropy_with_logits
+                (outputs[i], labels[i].to_dense().float(),
+                 self.weights[0]*(labels[i].to_dense().long() == 1).float()
+                 + self.weights[1]*(labels[i].to_dense().long() == 1).float())
+                for i in idx]
+        loss = torch.mean(torch.Tensor(loss))
+        return loss
+
+    def compute_metrics(self, outputs, data, split):
+        outputs = torch.sigmoid(outputs)
+        if outputs.is_cuda:
+            outputs = outputs.detach().cpu()
+            labels = data['y'].detach().cpu()
+        idx = data[f'idx_{split}']
+        outputs = outputs[idx]
+        labels = labels[idx]
+        f1_micro, f1_macro, auc_micro, auc_macro, p5, r5 = nc_metrics(outputs, labels)
+        metrics = {'f1_micro': f1_micro, 'f1_macro': f1_macro,
+                   'auc_micro': auc_micro, 'auc_macro': auc_macro, 'p@5': p5, 'r@5': r5}
+
+        return metrics
+
+    def has_improved(self, m1, m2):
+        return m1['auc_macro'] < m2['auc_macro']
+
+    def init_metric_dict(self):
+        return {'f1_micro': -1, 'f1_macro': -1,
+                'auc_micro': -1, 'auc_macro': -1, 'p@5': -1, 'r@5': -1}
 
 
 class MultitaskNCModel1(BaseModel):
@@ -179,22 +254,32 @@ class MultitaskNCModel1(BaseModel):
 
     def compute_metrics(self, outputs, data, split):
         outputs_dis, outputs_med, outputs_dur = tuple(outputs)
+        outputs_dis, outputs_med, outputs_dur = torch.sigmoid(outputs_dis), torch.sigmoid(outputs_med), torch.sigmoid(outputs_dur)
 
         dis_split = data[f'dis_{split}']
+        if outputs_dis.is_cuda:
+            outputs_dis = outputs_dis.detach().cpu()
+            labels_dis = data['dis_y'].detach().cpu()
         dis_outputs = outputs_dis[self.dis_id][dis_split]
-        dis_labels = data['dis_y'][dis_split]
+        dis_labels = labels_dis[dis_split]
         f1_micro_dis, f1_macro_dis, auc_micro_dis, auc_macro_dis, p5_dis, r5_dis = \
-            nc_metrics(dis_outputs, dis_labels, 50)
+            nc_metrics(dis_outputs, dis_labels)
 
         med_split = data[f'med_{split}']
+        if outputs_med.is_cuda:
+            outputs_med = outputs_med.detach().cpu()
+            labels_med = data['med_y'].detach().cpu()
         med_outputs = outputs_med[self.med_id][med_split]
-        med_labels = data['med_y'][med_split]
+        med_labels = labels_med[med_split]
         f1_micro_med, f1_macro_med, auc_micro_med, auc_macro_med, p5_med, r5_med = \
-            nc_metrics(med_outputs, med_labels, 50)
+            nc_metrics(med_outputs, med_labels)
 
         dur_split = data[f'dur_{split}']
+        if outputs_dur.is_cuda:
+            outputs_dur = outputs_dur.detach().cpu()
+            labels_dur = data['dur_y'].detach().cpu()
         dur_outputs = outputs_dur[self.dur_id][dur_split][:, 0]
-        dur_labels = data['dur_y'][dur_split]
+        dur_labels = labels_dur[dur_split]
         acc, pre, rec, f1, auc = acc_f1(dur_outputs, dur_labels)
 
         metrics = {'f1_micro_dis': f1_micro_dis, 'f1_macro_dis': f1_macro_dis,
@@ -353,22 +438,33 @@ class MultitaskNCModel2(BaseModel):
 
     def compute_metrics(self, outputs, data, split):
         outputs_dis, outputs_med, outputs_dur = tuple(outputs)
+        outputs_dis, outputs_med, outputs_dur = torch.sigmoid(outputs_dis), torch.sigmoid(outputs_med), torch.sigmoid(
+            outputs_dur)
 
         dis_split = data[f'dis_{split}']
+        if outputs_dis.is_cuda:
+            outputs_dis = outputs_dis.detach().cpu()
+            labels_dis = data['dis_y'].detach().cpu()
         dis_outputs = outputs_dis[self.dis_id][dis_split]
-        dis_labels = data['dis_y'][dis_split]
+        dis_labels = labels_dis[dis_split]
         f1_micro_dis, f1_macro_dis, auc_micro_dis, auc_macro_dis, p5_dis, r5_dis = \
-            nc_metrics(dis_outputs, dis_labels, 50)
+            nc_metrics(dis_outputs, dis_labels)
 
         med_split = data[f'med_{split}']
+        if outputs_med.is_cuda:
+            outputs_med = outputs_med.detach().cpu()
+            labels_med = data['med_y'].detach().cpu()
         med_outputs = outputs_med[self.med_id][med_split]
-        med_labels = data['med_y'][med_split]
+        med_labels = labels_med[med_split]
         f1_micro_med, f1_macro_med, auc_micro_med, auc_macro_med, p5_med, r5_med = \
-            nc_metrics(med_outputs, med_labels, 50)
+            nc_metrics(med_outputs, med_labels)
 
         dur_split = data[f'dur_{split}']
+        if outputs_dur.is_cuda:
+            outputs_dur = outputs_dur.detach().cpu()
+            labels_dur = data['dur_y'].detach().cpu()
         dur_outputs = outputs_dur[self.dur_id][dur_split][:, 0]
-        dur_labels = data['dur_y'][dur_split]
+        dur_labels = labels_dur[dur_split]
         acc, pre, rec, f1, auc = acc_f1(dur_outputs, dur_labels)
 
         metrics = {'f1_micro_dis': f1_micro_dis, 'f1_macro_dis': f1_macro_dis,

@@ -82,9 +82,32 @@ def load_data_nc(args):
         adj = adj + sp.eye(adj.shape[0])
         if not use_feats:
             features = sp.coo_matrix(sp.eye(adj.shape[0]))
-        y = torch.LongTensor(y)
         features = sparse_mx_to_torch_sparse_tensor(features)
         adj = sparse_mx_to_torch_sparse_tensor(adj)
+        y = torch.LongTensor(y)
+
+        data = {'adj': adj, 'x': features, 'y': y, 'idx_train': idx_train, 'idx_val': idx_val, 'idx_test': idx_test}
+
+    elif dataset in ['full']:
+        names = ['features', 'y', 'graph']
+        objects = []
+        for i in range(len(names)):
+            with open(os.path.join("data/mimic-full/{}.pkl".format(names[i])), 'rb') as f:
+                objects.append(pkl.load(f))
+        features, y, graph = tuple(objects)
+        all_idx = np.arange(len(y))
+        np.random.shuffle(all_idx)
+        all_idx = all_idx.tolist()
+        nb_val = round(0.10 * len(all_idx))
+        nb_test = round(0.20 * len(all_idx))
+        idx_val, idx_test, idx_train = all_idx[:nb_val], all_idx[nb_val: nb_val + nb_test], all_idx[nb_val + nb_test:]
+        adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
+        adj = adj + sp.eye(adj.shape[0])
+        if not use_feats:
+            features = sp.coo_matrix(sp.eye(adj.shape[0]))
+        features = sparse_mx_to_torch_sparse_tensor(features)
+        adj = sparse_mx_to_torch_sparse_tensor(adj)
+        y = torch.LongTensor(y).to_sparse()
 
         data = {'adj': adj, 'x': features, 'y': y, 'idx_train': idx_train, 'idx_val': idx_val, 'idx_test': idx_test}
 
