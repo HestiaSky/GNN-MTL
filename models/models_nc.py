@@ -122,23 +122,14 @@ class NCSparseModel(BaseModel):
             self.weights = self.weights.to(args.device)
 
     def get_weights(self, data):
-        pos = (data.long() == 1).float()
-        neg = (data.long() == 0).float()
         alpha_pos = []
         alpha_neg = []
-        if len(data.shape) > 1:
-            for i in range(data.shape[1]):
-                num_pos = torch.sum(data.long()[:, i] == 1).float()
-                num_neg = torch.sum(data.long()[:, i] == 0).float()
-                num_total = num_pos + num_neg
-                alpha_pos.append(num_neg / num_total)
-                alpha_neg.append(num_pos / num_total)
-        else:
-            num_pos = torch.sum(data.long() == 1).float()
-            num_neg = torch.sum(data.long() == 0).float()
+        for i in range(data.shape[1]):
+            num_pos = torch.sum(data.to_dense().long()[:, i] == 1).float()
+            num_neg = torch.sum(data.to_dense().long()[:, i] == 0).float()
             num_total = num_pos + num_neg
-            alpha_pos = num_neg / num_total
-            alpha_neg = num_pos / num_total
+            alpha_pos.append(num_neg / num_total)
+            alpha_neg.append(num_pos / num_total)
         return [alpha_pos, alpha_neg]
 
     def decode(self, h, adj):

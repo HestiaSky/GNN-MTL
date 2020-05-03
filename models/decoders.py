@@ -76,5 +76,5 @@ class LinearDecoder(Decoder):
 model2decoder = {
     'GCN': MLPDecoder,
     'GAT': MLPDecoder,
-    'HGCN': HGCNDecoder,
+    'HGCN': MLPDecoder,
 }
