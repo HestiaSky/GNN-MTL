@@ -140,12 +140,14 @@ class NCSparseModel(BaseModel):
         idx = data[f'idx_{split}']
         outputs = outputs
         labels = data['y']
-        loss = [F.binary_cross_entropy_with_logits
-                (outputs[i], labels[i].to_dense().float(),
-                 self.weights[0]*(labels[i].to_dense().long() == 1).float()
-                 + self.weights[1]*(labels[i].to_dense().long() == 1).float())
-                for i in idx]
-        loss = torch.mean(torch.Tensor(loss))
+        losses = [F.binary_cross_entropy_with_logits
+                  (outputs[i], labels[i].to_dense().float(),
+                   self.weights[0]*(labels[i].to_dense().long() == 1).float()
+                   + self.weights[1]*(labels[i].to_dense().long() == 1).float()) / len(idx)
+                  for i in idx]
+        loss = losses[0]
+        for i in range(1, len(idx)):
+            loss = loss+losses[i]
         return loss
 
     def compute_metrics(self, outputs, data, split):
