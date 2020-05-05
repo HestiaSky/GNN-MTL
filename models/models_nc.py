@@ -124,13 +124,14 @@ class NCSparseModel(BaseModel):
     def get_weights(self, data):
         alpha_pos = []
         alpha_neg = []
+        data = data.to_dense()
         for i in range(data.shape[1]):
-            num_pos = torch.sum(data.to_dense().long()[:, i] == 1).float()
-            num_neg = torch.sum(data.to_dense().long()[:, i] == 0).float()
+            num_pos = torch.sum(data.long()[:, i] == 1).float()
+            num_neg = torch.sum(data.long()[:, i] == 0).float()
             num_total = num_pos + num_neg
             alpha_pos.append(num_neg / num_total)
             alpha_neg.append(num_pos / num_total)
-        return [alpha_pos, alpha_neg]
+        return torch.Tensor([alpha_pos, alpha_neg])
 
     def decode(self, h, adj):
         output = self.decoder.decode(h, adj)
@@ -139,11 +140,11 @@ class NCSparseModel(BaseModel):
     def get_loss(self, outputs, data, split):
         idx = data[f'idx_{split}']
         outputs = outputs
-        labels = data['y']
+        labels = data['y'].to_dense()
         losses = [F.binary_cross_entropy_with_logits
-                  (outputs[i], labels[i].to_dense().float(),
-                   self.weights[0]*(labels[i].to_dense().long() == 1).float()
-                   + self.weights[1]*(labels[i].to_dense().long() == 1).float()) / len(idx)
+                  (outputs[i], labels[i].float(),
+                   self.weights[0]*(labels[i].long() == 1).float()
+                   + self.weights[1]*(labels[i].long() == 1).float()) / len(idx)
                   for i in idx]
         loss = losses[0]
         for i in range(1, len(idx)):
