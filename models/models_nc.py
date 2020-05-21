@@ -115,7 +115,7 @@ class NCSparseModel(BaseModel):
         super(NCSparseModel, self).__init__(args)
         self.n_classes = args.n_classes
         self.decoder = model2decoder[args.model](args)
-        # Calculate Weight Matrix to balance samples
+        # Calculate Weight Matrix to balance samplesd
 
     def decode(self, h, adj):
         output = self.decoder.decode(h, adj)

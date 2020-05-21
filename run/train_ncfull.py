@@ -2,10 +2,10 @@ import time
 
 from utils.data_utils import *
 from utils.eval_utils import format_metrics
-from models.models_nc import NCModel, MultitaskNCModel1, MultitaskNCModel2
+from models.models_nc import NCSparseModel
 
 
-def train_nc(args):
+def train_ncfull(args):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     args.device = 'cuda:' + str(args.cuda) if int(args.cuda) >= 0 else 'cpu'
@@ -19,37 +19,25 @@ def train_nc(args):
     print(f'Dim_feats: {args.feat_dim}')
     args.data = data
     Model = None
-    if args.task == 'nc' and args.dataset in ['dis', 'med', 'dur']:
-        Model = NCModel
-        if len(data['y'].shape) > 1:
-            args.n_classes = data['y'].shape[1]
-        else:
-            args.n_classes = 1
+    if args.task == 'nc' and args.dataset == 'full':
+        Model = NCSparseModel
+        args.n_classes = data['y'].shape[1]
         print(f'Num Labels: {args.n_classes}')
-    elif args.task == 'nc' and args.dataset == 'multitask1':
-        Model = MultitaskNCModel1
-        print(f'Multitask Model: {args.dataset}')
-    elif args.task == 'nc' and args.dataset == 'multitask2':
-        Model = MultitaskNCModel2
-        print(f'Multitask Model: {args.dataset}')
 
     # Model and Optimizer
     model = Model(args)
     print(str(model))
-    optimizer = torch.optim.Adam(params=model.parameters(),
+    optimizer_encoder = torch.optim.Adam(params=model.encoder.parameters(),
                                  lr=args.lr, weight_decay=args.weight_decay)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer,
-        step_size=int(args.lr_reduce_freq),
-        gamma=float(args.gamma)
-    )
+    optimizer_decoder = torch.optim.Adam(params=model.decoder.parameters(),
+                                 lr=args.lr, weight_decay=args.weight_decay)
     tot_params = sum([np.prod(p.size()) for p in model.parameters()])
     print(f'Total number of parameters: {tot_params}')
     if args.cuda is not None and int(args.cuda) >= 0:
         # os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda)
         model = model.to(args.device)
         for x, val in data.items():
-            if torch.is_tensor(data[x]):
+            if torch.is_tensor(data[x]) and x != 'y':
                 data[x] = data[x].to(args.device)
 
     # Train Model
@@ -62,30 +50,33 @@ def train_nc(args):
     for epoch in range(args.epochs):
         t = time.time()
         model.train()
-        optimizer.zero_grad()
+        optimizer_encoder.zero_grad()
         embeddings = model.encode(data['x'], data['adj'])
-        if type(embeddings) == type([]):
-            embeddings = [torch.cat([x, data['x'].to_dense()], axis=1) for x in embeddings]
-        else:
-            embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
-        outputs = model.decode(embeddings, data['adj'])
-        loss = model.get_loss(outputs, data, 'train')
-        loss.backward()
-        optimizer.step()
-        lr_scheduler.step()
+        embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
+        batch_num = len(data['batch'])
+        for step, (batch_x, batch_y) in enumerate(data['batch']):
+            if args.cuda is not None and int(args.cuda) >= 0:
+                batch_x = batch_x.cuda()
+                batch_y = batch_y.cuda()
+            optimizer_decoder.zero_grad()
+            outputs = model.decode(embeddings[batch_x], data['adj'])
+            loss = model.get_loss(outputs, batch_y, 'train')
+            if (step + 1) < batch_num:
+                loss.backward(retain_graph=True)
+            else:
+                loss.backward()
+            optimizer_decoder.step()
+        optimizer_encoder.step()
         if (epoch + 1) % args.log_freq == 0:
             train_metrics = model.compute_metrics(outputs, data, 'train')
             print(' '.join(['Epoch: {:04d}'.format(epoch + 1),
-                            'lr: {}'.format(lr_scheduler.get_lr()[0]),
+                            'lr: {}'.format(args.lr),
                             format_metrics(train_metrics, 'train'),
                             'time: {:.4f}s'.format(time.time() - t)]))
         if (epoch + 1) % args.eval_freq == 0:
             model.eval()
             embeddings = model.encode(data['x'], data['adj'])
-            if type(embeddings) == type([]):
-                embeddings = [torch.cat([x, data['x'].to_dense()], axis=1) for x in embeddings]
-            else:
-                embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
+            embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
             outputs = model.decode(embeddings, data['adj'])
             val_metrics = model.compute_metrics(outputs, data, 'val')
             print(' '.join(['Epoch: {:04d}'.format(epoch + 1),
@@ -111,10 +102,7 @@ def train_nc(args):
     if not best_test_metrics:
         model.eval()
         best_emb = model.encode(data['x'], data['adj'])
-        if type(best_emb) == type([]):
-            best_emb = [torch.cat([x, data['x'].to_dense()], axis=1) for x in best_emb]
-        else:
-            best_emb = torch.cat([best_emb, data['x'].to_dense()], axis=1)
+        best_emb = torch.cat([best_emb, data['x'].to_dense()], axis=1)
         outputs = model.decode(best_emb, data['adj'])
         best_test_metrics = model.compute_metrics(outputs, data, 'test')
     print(' '.join(['Val set results:',
