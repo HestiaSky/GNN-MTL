@@ -116,61 +116,35 @@ class NCSparseModel(BaseModel):
         self.n_classes = args.n_classes
         self.decoder = model2decoder[args.model](args)
         # Calculate Weight Matrix to balance samples
-        data = args.data['y']
-        self.weights = self.get_weights(data)
-        if not args.cuda == -1:
-            self.weights = self.weights.to(args.device)
-
-    def get_weights(self, data):
-        alpha_pos = []
-        alpha_neg = []
-        data = data.to_dense()
-        for i in range(data.shape[1]):
-            num_pos = torch.sum(data.long()[:, i] == 1).float()
-            num_neg = torch.sum(data.long()[:, i] == 0).float()
-            num_total = num_pos + num_neg
-            alpha_pos.append(num_neg / num_total)
-            alpha_neg.append(num_pos / num_total)
-        return torch.Tensor([alpha_pos, alpha_neg])
 
     def decode(self, h, adj):
         output = self.decoder.decode(h, adj)
         return output
 
     def get_loss(self, outputs, data, split):
-        idx = data[f'idx_{split}']
-        outputs = outputs
-        labels = data['y'].to_dense()
-        losses = [F.binary_cross_entropy_with_logits
-                  (outputs[i], labels[i].float(),
-                   self.weights[0]*(labels[i].long() == 1).float()
-                   + self.weights[1]*(labels[i].long() == 1).float()) / len(idx)
-                  for i in idx]
-        loss = losses[0]
-        for i in range(1, len(idx)):
-            loss = loss+losses[i]
+        labels = data
+        loss = F.binary_cross_entropy_with_logits(outputs, labels.float())
         return loss
 
     def compute_metrics(self, outputs, data, split):
         outputs = torch.sigmoid(outputs)
         if outputs.is_cuda:
             outputs = outputs.detach().cpu()
-            labels = data['y'].detach().cpu()
         idx = data[f'idx_{split}']
         outputs = outputs[idx]
-        labels = labels[idx]
-        f1_micro, f1_macro, auc_micro, auc_macro, p5, r5 = nc_metrics(outputs, labels)
+        labels = data['y'][idx]
+        f1_micro, f1_macro, auc_micro, auc_macro, p8, p15 = nc_metrics(outputs, labels)
         metrics = {'f1_micro': f1_micro, 'f1_macro': f1_macro,
-                   'auc_micro': auc_micro, 'auc_macro': auc_macro, 'p@5': p5, 'r@5': r5}
+                   'auc_micro': auc_micro, 'auc_macro': auc_macro, 'p@8': p8, 'p@15': p15}
 
         return metrics
 
     def has_improved(self, m1, m2):
-        return m1['auc_macro'] < m2['auc_macro']
+        return m1['p@8'] < m2['p@8']
 
     def init_metric_dict(self):
         return {'f1_micro': -1, 'f1_macro': -1,
-                'auc_micro': -1, 'auc_macro': -1, 'p@5': -1, 'r@5': -1}
+                'auc_micro': -1, 'auc_macro': -1, 'p@8': -1, 'p@15': -1}
 
 
 class MultitaskNCModel1(BaseModel):

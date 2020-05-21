@@ -52,7 +52,7 @@ class MLPDecoder(Decoder):
 
     def __init__(self, args):
         super(MLPDecoder, self).__init__()
-        dims = [2 * args.dim, 2 * args.dim, args.dim, args.n_classes]
+        dims = [2 * args.dim, 2 * args.dim, 2 * args.dim, args.n_classes]
         acts = [getattr(F, 'relu'), getattr(F, 'relu'), lambda x: x]
         layers = []
         for i in range(len(dims) - 1):

@@ -54,6 +54,8 @@ def train_nc(args):
         model = model.to(args.device)
         for x, val in data.items():
             if torch.is_tensor(data[x]):
+                if args.dataset == 'full' and x == 'y':
+                    continue
                 data[x] = data[x].to(args.device)
 
     # Train Model
@@ -72,11 +74,19 @@ def train_nc(args):
             embeddings = [torch.cat([x, data['x'].to_dense()], axis=1) for x in embeddings]
         else:
             embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
-        outputs = model.decode(embeddings, data['adj'])
-        loss = model.get_loss(outputs, data, 'train')
-        loss.backward()
-        optimizer.step()
-        lr_scheduler.step()
+        if args.dataset == 'full':
+            for step, (batch_x, batch_y) in enumerate(data['batch']):
+                outputs = model.decode(embeddings[batch_x], data['adj'])
+                loss = model.get_loss(outputs, data, 'train')
+                loss.backward()
+                optimizer.step()
+                lr_scheduler.step()
+        else:
+            outputs = model.decode(embeddings, data['adj'])
+            loss = model.get_loss(outputs, data, 'train')
+            loss.backward()
+            optimizer.step()
+            lr_scheduler.step()
         if (epoch + 1) % args.log_freq == 0:
             train_metrics = model.compute_metrics(outputs, data, 'train')
             print(' '.join(['Epoch: {:04d}'.format(epoch + 1),

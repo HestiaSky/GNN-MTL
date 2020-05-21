@@ -24,9 +24,9 @@ def acc_f1(output, labels, average='binary'):
 
 
 def nc_metrics(output, labels):
-    roc_auc = auc_metrics(np.array(output), np.array(labels.long()), np.array(labels.long()).ravel())
-    p5 = precision_at_k(output, labels, 5)
-    r5 = recall_at_k(output, labels, 5)
+    roc_auc = auc_metrics(np.array(output.float()), np.array(labels.long()), np.array(labels.long()).ravel())
+    p5 = precision_at_k(output, labels, 8)
+    r5 = precision_at_k(output, labels, 15)
     output = (output > 0.5).long()
     labels = labels.long()
     f1_micro = f1_score(labels, output, average='micro')

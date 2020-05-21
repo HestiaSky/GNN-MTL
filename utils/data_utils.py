@@ -11,6 +11,7 @@ import torch
 import random
 import torch.nn.functional as F
 from torchtext.data import Dataset, BucketIterator, Field, Example
+from torch.utils.data import TensorDataset, DataLoader
 
 
 def load_data(args):
@@ -107,9 +108,10 @@ def load_data_nc(args):
             features = sp.coo_matrix(sp.eye(adj.shape[0]))
         features = sparse_mx_to_torch_sparse_tensor(features)
         adj = sparse_mx_to_torch_sparse_tensor(adj)
-        y = torch.LongTensor(y).to_sparse()
+        y = torch.LongTensor(y)
+        loader = DataLoader(TensorDataset(torch.LongTensor(idx_train), y[idx_train]), batch_size=args.batch_size)
 
-        data = {'adj': adj, 'x': features, 'y': y, 'idx_train': idx_train, 'idx_val': idx_val, 'idx_test': idx_test}
+        data = {'adj': adj, 'x': features, 'y': y, 'idx_train': idx_train, 'idx_val': idx_val, 'idx_test': idx_test, 'batch': loader}
 
     elif dataset in ['multitask1', 'multitask2']:
         datapath = ['dis', 'med', 'dur']
