@@ -58,7 +58,7 @@ def train_ea(args):
         optimizer.zero_grad()
         # embeddings = model.encode(data['x'], data['adj'])
         # outputs = model.decode(embeddings, data['adj'])
-        outputs = model.encode(torch.LongTensor(data['x'].shape[0]), torch.LongTensor(data['r'].shape[0]))
+        outputs = model.encode(data['idx_x'], data['idx_r'])
         if epoch % 50 == 0:
             model.neg_right = model.get_neg(data['train'][:, 0], outputs, args.neg_num)
             model.neg2_left = model.get_neg(data['train'][:, 1], outputs, args.neg_num)

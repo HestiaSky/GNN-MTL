@@ -385,7 +385,8 @@ def load_data_ea(dataset):
     for rel in range(r):
         features_r[rel] = (torch.sum(feat[tail[rel]], 0) - torch.sum(feat[head[rel]], 0)) / len(head[rel])
     features_r = features_r.to_sparse()
-    data = {'x': features, 'adj': M, 'r': features_r, 'train': train, 'test': test, 'test_r': test_r, 'triple': KG}
+    data = {'x': features, 'adj': M, 'r': features_r, 'train': train, 'test': test, 'test_r': test_r, 'triple': KG,
+            'idx_x': torch.LongTensor(range(features.shape[0])), 'idx_r': torch.LongTensor(range(features_r.shape[0]))}
     return data
 
 
