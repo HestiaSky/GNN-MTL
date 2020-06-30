@@ -58,11 +58,12 @@ def train_ea(args):
         optimizer.zero_grad()
         # embeddings = model.encode(data['x'], data['adj'])
         # outputs = model.decode(embeddings, data['adj'])
-        outputs = model.encode(data['idx_x'], data['idx_r'])
+        outputs, outputs_r = model.encode(data['idx_x'], data['idx_r'])
         if epoch % 50 == 0:
             model.neg_right = model.get_neg(data['train'][:, 0], outputs, args.neg_num)
             model.neg2_left = model.get_neg(data['train'][:, 1], outputs, args.neg_num)
-        loss = model.get_loss(outputs, data, 'train')
+        # loss = model.get_loss(outputs, data, 'train')
+        loss = model.get_loss(outputs, outputs_r, data, 'train')
         loss.backward()
         optimizer.step()
         lr_scheduler.step()
@@ -74,8 +75,9 @@ def train_ea(args):
                             'time: {:.4f}s'.format(time.time() - t)]))
         if (epoch + 1) % args.eval_freq == 0:
             model.eval()
-            embeddings = model.encode(data['x'], data['adj'])
-            outputs = model.decode(embeddings, data['adj'])
+            # embeddings = model.encode(data['x'], data['adj'])
+            # outputs = model.decode(embeddings, data['adj'])
+            outputs, outputs_r = model.encode(data['idx_x'], data['idx_r'])
             val_metrics = model.compute_metrics(outputs, data, 'val')
             print(' '.join(['Epoch: {:04d}'.format(epoch + 1),
                             format_metrics(val_metrics, 'val')]))

@@ -4,7 +4,7 @@ import argparse
 config_args = {
     'lr': 0.001,
     'dropout': 0.0,
-    'cuda': -1,
+    'cuda': 0,
     'epochs': 100,
     'weight-decay': 0.0,
     'seed': 10086,

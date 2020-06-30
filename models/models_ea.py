@@ -108,8 +108,8 @@ class TransE(BaseModel):
         self.neg2_right = L.reshape((t * k,))
         self.neg_right = None
         self.neg2_left = None
-        self.eembed = nn.Embedding.from_pretrained(args.data['x'])
-        self.rembed = nn.Embedding.from_pretrained(args.data['r'])
+        self.eembed = nn.Embedding.from_pretrained(args.data['x'].to_dense(), freeze=False)
+        self.rembed = nn.Embedding.from_pretrained(args.data['r'].to_dense(), freeze=False)
 
     def encode(self, e, r):
         e = self.eembed(e)
@@ -118,7 +118,10 @@ class TransE(BaseModel):
 
     def get_loss(self, outputs, relation, data, split):
         tri = data['triple']
-        loss_s = torch.sum(torch.FloatTensor([torch.norm(outputs[h] + relation[r] - outputs[t]) for h, r, t in tri]))
+        h = [t[0] for t in tri]
+        r = [t[1] for t in tri]
+        t = [t[2] for t in tri]
+        loss_s = torch.norm(outputs[h] + relation[r] - outputs[t], p=1)
         print(loss_s)
         return loss_s
         '''ILL = data[split]
