@@ -121,10 +121,11 @@ class TransE(BaseModel):
         h = [t[0] for t in tri]
         r = [t[1] for t in tri]
         t = [t[2] for t in tri]
-        loss_s = torch.norm(outputs[h] + relation[r] - outputs[t], p=1)
+        diff = torch.sum(torch.abs(outputs[h] + relation[r] - outputs[t]), 1)
+        loss_s = torch.sum(F.relu(diff)) / len(tri)
         print(loss_s)
-        return loss_s
-        '''ILL = data[split]
+
+        ILL = data[split]
         left = ILL[:, 0]
         right = ILL[:, 1]
         t = len(ILL)
@@ -143,5 +144,8 @@ class TransE(BaseModel):
         B = torch.sum(torch.abs(neg_l_x - neg_r_x), 1)
         C = - torch.reshape(B, [t, k])
         L2 = F.relu(torch.add(C, torch.reshape(D, [t, 1])))
-        return (torch.sum(L1) + torch.sum(L2)) / (2.0 * t * k)'''
+        loss_e = (torch.sum(L1) + torch.sum(L2)) / (2.0 * t * k)
+        print(loss_e)
+
+        return loss_s + loss_e
 
