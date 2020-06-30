@@ -50,9 +50,10 @@ def train_ncfull(args):
     for epoch in range(args.epochs):
         t = time.time()
         model.train()
-        optimizer_encoder.zero_grad()
-        embeddings = model.encode(data['x'], data['adj'])
-        embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
+        #optimizer_encoder.zero_grad()
+        #embeddings = model.encode(data['x'], data['adj'])
+        #embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
+        embeddings = data['x'].to_dense()
         batch_num = len(data['batch'])
         for step, (batch_x, batch_y) in enumerate(data['batch']):
             if args.cuda is not None and int(args.cuda) >= 0:
@@ -66,11 +67,12 @@ def train_ncfull(args):
             else:
                 loss.backward()
             optimizer_decoder.step()
-        optimizer_encoder.step()
+        #optimizer_encoder.step()
         if (epoch + 1) % args.log_freq == 0:
             model.eval()
-            embeddings = model.encode(data['x'], data['adj'])
-            embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
+            #embeddings = model.encode(data['x'], data['adj'])
+            #embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
+            embeddings = data['x'].to_dense()
             outputs = model.decode(embeddings, data['adj'])
             train_metrics = model.compute_metrics(outputs, data, 'train')
             print(' '.join(['Epoch: {:04d}'.format(epoch + 1),
@@ -79,8 +81,9 @@ def train_ncfull(args):
                             'time: {:.4f}s'.format(time.time() - t)]))
         if (epoch + 1) % args.eval_freq == 0:
             model.eval()
-            embeddings = model.encode(data['x'], data['adj'])
-            embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
+            #embeddings = model.encode(data['x'], data['adj'])
+            #embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
+            embeddings = data['x'].to_dense()
             outputs = model.decode(embeddings, data['adj'])
             val_metrics = model.compute_metrics(outputs, data, 'val')
             print(' '.join(['Epoch: {:04d}'.format(epoch + 1),
