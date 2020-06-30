@@ -2,7 +2,7 @@ import time
 
 from utils.data_utils import *
 from utils.eval_utils import format_metrics
-from models.models_ea import EAModel
+from models.models_ea import EAModel, TransE
 
 
 def train_ea(args):
@@ -19,8 +19,11 @@ def train_ea(args):
     print(f'Dim_feats: {args.feat_dim}')
     args.data = data
     Model = None
-    if args.task == 'ea':
+    if args.model == 'HGCN':
         Model = EAModel
+        args.n_classes = args.feat_dim
+    elif args.model == 'TransE':
+        Model = TransE
         args.n_classes = args.feat_dim
 
     # Model and Optimizer
@@ -53,8 +56,9 @@ def train_ea(args):
         t = time.time()
         model.train()
         optimizer.zero_grad()
-        embeddings = model.encode(data['x'], data['adj'])
-        outputs = model.decode(embeddings, data['adj'])
+        # embeddings = model.encode(data['x'], data['adj'])
+        # outputs = model.decode(embeddings, data['adj'])
+        outputs = model.encode(torch.LongTensor(data['x'].shape[0]), torch.LongTensor(data['r'].shape[0]))
         if epoch % 50 == 0:
             model.neg_right = model.get_neg(data['train'][:, 0], outputs, args.neg_num)
             model.neg2_left = model.get_neg(data['train'][:, 1], outputs, args.neg_num)

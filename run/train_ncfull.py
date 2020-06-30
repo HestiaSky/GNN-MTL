@@ -68,6 +68,10 @@ def train_ncfull(args):
             optimizer_decoder.step()
         optimizer_encoder.step()
         if (epoch + 1) % args.log_freq == 0:
+            model.eval()
+            embeddings = model.encode(data['x'], data['adj'])
+            embeddings = torch.cat([embeddings, data['x'].to_dense()], axis=1)
+            outputs = model.decode(embeddings, data['adj'])
             train_metrics = model.compute_metrics(outputs, data, 'train')
             print(' '.join(['Epoch: {:04d}'.format(epoch + 1),
                             'lr: {}'.format(args.lr),

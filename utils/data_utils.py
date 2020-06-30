@@ -16,13 +16,12 @@ from torch.utils.data import TensorDataset, DataLoader
 
 def load_data(args):
     if args.task == 'nc':
-        if args.model in ['lr', 'mlp', 'textcnn', 'bigru', 'han']:
-            data = load_data_nctext(args)
-        else:
-            data = load_data_nc(args)
+        data = load_data_nc(args)
+    elif args.task == 'nctext':
+        data = load_data_nctext(args)
     elif args.task == 'lp':
         data = load_data_lp(args)
-    else:
+    elif args.task == 'ea':
         data = load_data_ea(args.dataset)
 
     return data
@@ -277,12 +276,12 @@ def rfunc(e, KG):
     for tri in KG:
         if tri[1] not in cnt:
             cnt[tri[1]] = 1
-            head[tri[1]] = set([tri[0]])
-            tail[tri[1]] = set([tri[2]])
+            head[tri[1]] = list([tri[0]])
+            tail[tri[1]] = list([tri[2]])
         else:
             cnt[tri[1]] += 1
-            head[tri[1]].add(tri[0])
-            tail[tri[1]].add(tri[2])
+            head[tri[1]].append(tri[0])
+            tail[tri[1]].append(tri[2])
     r_num = len(head)
     head_r = np.zeros((e, r_num))
     tail_r = np.zeros((e, r_num))
@@ -367,6 +366,7 @@ def load_data_ea(dataset):
     kg2 = 'data/dbp15k/' + lang + '/triples_2'
 
     e = len(set(loadfile(e1, 1)) | set(loadfile(e2, 1)))
+    r = len(set(loadfile(r1, 1)) | set(loadfile(r2, 1)))
     ILL = loadfile(ill, 2)
     illL = len(ILL)
     np.random.shuffle(ILL)
@@ -376,12 +376,16 @@ def load_data_ea(dataset):
     KG = loadfile(kg1, 3) + loadfile(kg2, 3)
 
     features = get_features(lang[0:2])
-    M = get_sparse_tensor(e, KG)
     features = sparse_mx_to_torch_sparse_tensor(features)
+    M = get_sparse_tensor(e, KG)
     M = sparse_mx_to_torch_sparse_tensor(M)
     head, tail, head_r, tail_r = rfunc(e, KG)
-    data = {'x': features, 'adj': M, 'head': head, 'tail': tail, 'head_r': head_r, 'tail_r': tail_r,
-            'train': train, 'test': test, 'test_r': test_r}
+    feat = features.to_dense()
+    features_r = torch.FloatTensor(r, len(feat[0]))
+    for rel in range(r):
+        features_r[rel] = (torch.sum(feat[tail[rel]], 0) - torch.sum(feat[head[rel]], 0)) / len(head[rel])
+    features_r = features_r.to_sparse()
+    data = {'x': features, 'adj': M, 'r': features_r, 'train': train, 'test': test, 'test_r': test_r, 'triple': KG}
     return data
 
 
