@@ -2,7 +2,7 @@ import time
 
 from utils.data_utils import *
 from utils.eval_utils import format_metrics
-from models.models_ea import EAModel, TransE
+from models.models_ea import EAModel, TransE, DistillModel
 
 
 def train_ea(args):
@@ -19,12 +19,13 @@ def train_ea(args):
     print(f'Dim_feats: {args.feat_dim}')
     args.data = data
     Model = None
+    args.n_classes = args.feat_dim
     if args.model == 'HGCN':
         Model = EAModel
-        args.n_classes = args.feat_dim
     elif args.model == 'TransE':
         Model = TransE
-        args.n_classes = args.feat_dim
+    elif args.model == 'Distill':
+        Model = DistillModel
 
     # Model and Optimizer
     model = Model(args)
@@ -56,14 +57,14 @@ def train_ea(args):
         t = time.time()
         model.train()
         optimizer.zero_grad()
-        # embeddings = model.encode(data['x'], data['adj'])
-        # outputs = model.decode(embeddings, data['adj'])
-        outputs, outputs_r = model.encode(data['idx_x'], data['idx_r'])
+        embeddings = model.encode(data['x'], data['adj'])
+        outputs = model.decode(embeddings, data['adj'])
+        # outputs, outputs_r = model.encode(data['idx_x'], data['idx_r'])
         if epoch % 50 == 0:
             model.neg_right = model.get_neg(data['train'][:, 0], outputs, args.neg_num)
             model.neg2_left = model.get_neg(data['train'][:, 1], outputs, args.neg_num)
-        # loss = model.get_loss(outputs, data, 'train')
-        loss = model.get_loss(outputs, outputs_r, data, 'train')
+        loss = model.get_loss(outputs, data, 'train')
+        # loss = model.get_loss(outputs, outputs_r, data, 'train')
         loss.backward()
         optimizer.step()
         lr_scheduler.step()
@@ -75,13 +76,14 @@ def train_ea(args):
                             'time: {:.4f}s'.format(time.time() - t)]))
         if (epoch + 1) % args.eval_freq == 0:
             model.eval()
-            # embeddings = model.encode(data['x'], data['adj'])
-            # outputs = model.decode(embeddings, data['adj'])
-            outputs, outputs_r = model.encode(data['idx_x'], data['idx_r'])
+            embeddings = model.encode(data['x'], data['adj'])
+            outputs = model.decode(embeddings, data['adj'])
+            # outputs, outputs_r = model.encode(data['idx_x'], data['idx_r'])
             val_metrics = model.compute_metrics(outputs, data, 'val')
             print(' '.join(['Epoch: {:04d}'.format(epoch + 1),
                             format_metrics(val_metrics, 'val')]))
             if model.has_improved(best_val_metrics, val_metrics):
+                best_emb = outputs
                 best_test_metrics = model.compute_metrics(outputs, data, 'test')
                 best_val_metrics = val_metrics
                 counter = 0
@@ -103,8 +105,9 @@ def train_ea(args):
     print(' '.join(['Test set results:',
                     format_metrics(best_test_metrics, 'test')]))
     if args.save:
-        np.save('embeddings.npy', best_emb.cpu().detach().numpy())
-        json.dump(vars(args), open('config.json', 'w'))
-        torch.save(model.state_dict(), 'model.pth')
+        np.save(f'{args.dataset}_embeddings.npy', best_emb.cpu().detach().numpy())
+        args.data = []
+        json.dump(vars(args), open(f'{args.dataset}_config.json', 'w'))
+        torch.save(model.state_dict(), f'{args.dataset}_model.pth')
         print(f'Saved model!')
 

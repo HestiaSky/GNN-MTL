@@ -35,9 +35,7 @@ class BaseModel(nn.Module):
 
     def has_improved(self, m1, m2):
         return (m1['Hits@10_l'] < m2['Hits@10_l']) \
-               or (m1['Hits@100_l'] < m2['Hits@100_l']) \
-               or (m1['Hits@10_r'] < m2['Hits@10_r']) \
-               or (m1['Hits@100_r'] < m2['Hits@100_r'])
+               or (m1['Hits@10_r'] < m2['Hits@10_r'])
 
     def init_metric_dict(self):
         return {'Hits@1_l': -1, 'Hits@10_l': -1, 'Hits@50_l': -1, 'Hits@100_l': -1,
@@ -110,10 +108,13 @@ class TransE(BaseModel):
         self.neg2_left = None
         self.eembed = nn.Embedding.from_pretrained(args.data['x'].to_dense(), freeze=False)
         self.rembed = nn.Embedding.from_pretrained(args.data['r'].to_dense(), freeze=False)
+        self.dropout = nn.Dropout(args.dropout)
 
     def encode(self, e, r):
         e = self.eembed(e)
+        e = self.dropout(e)
         r = self.rembed(r)
+        r = self.dropout(r)
         return e, r
 
     def get_loss(self, outputs, relation, data, split):
@@ -122,8 +123,8 @@ class TransE(BaseModel):
         r = [t[1] for t in tri]
         t = [t[2] for t in tri]
         diff = torch.sum(torch.abs(outputs[h] + relation[r] - outputs[t]), 1)
-        loss_s = torch.sum(F.relu(diff)) / len(tri)
-        print(loss_s)
+        loss_r = torch.sum(F.relu(diff)) / len(tri)
+        print(loss_r)
 
         ILL = data[split]
         left = ILL[:, 0]
@@ -147,5 +148,65 @@ class TransE(BaseModel):
         loss_e = (torch.sum(L1) + torch.sum(L2)) / (2.0 * t * k)
         print(loss_e)
 
-        return loss_s + loss_e
+        return loss_r + loss_e
 
+
+class DistillModel(BaseModel):
+    # KG Distillation Model of GCN and TransE
+
+    def __init__(self, args):
+        super(DistillModel, self).__init__(args)
+        self.encoder = model2encoder[args.model](args)
+        self.decoder = model2decoder[args.model](args)
+        ILL = args.data['train']
+        t = len(ILL)
+        k = args.neg_num
+        self.neg_num = k
+        L = np.ones((t, k)) * (ILL[:, 0].reshape((t, 1)))
+        self.neg_left = L.reshape((t * k,))
+        L = np.ones((t, k)) * (ILL[:, 1].reshape((t, 1)))
+        self.neg2_right = L.reshape((t * k,))
+        self.neg_right = None
+        self.neg2_left = None
+
+    def encode(self, x, adj):
+        h = self.encoder.encode(x, adj)
+        return h
+
+    def decode(self, h, adj):
+        output = self.decoder.decode(h, adj)
+        return output
+
+    def get_loss(self, outputs, data, split):
+        tri = data['triple']
+        h = [t[0] for t in tri]
+        t = [t[2] for t in tri]
+        diff_gcn = torch.abs(outputs[h] - outputs[t])
+        diff_transe = torch.abs(data['emb'][h] - data['emb'][t])
+        diff_distill = torch.sum(torch.abs(diff_gcn-diff_transe), 1)
+        loss_r = torch.sum(F.relu(diff_distill)) / len(tri)
+        print(loss_r)
+
+        ILL = data[split]
+        left = ILL[:, 0]
+        right = ILL[:, 1]
+        t = len(ILL)
+        k = self.neg_num
+        left_x = outputs[left]
+        right_x = outputs[right]
+        A = torch.sum(torch.abs(left_x - right_x), 1)
+        neg_l_x = outputs[self.neg_left]
+        neg_r_x = outputs[self.neg_right]
+        B = torch.sum(torch.abs(neg_l_x - neg_r_x), 1)
+        C = - torch.reshape(B, [t, k])
+        D = A + 1.0
+        L1 = F.relu(torch.add(C, torch.reshape(D, [t, 1])))
+        neg_l_x = outputs[self.neg2_left]
+        neg_r_x = outputs[self.neg2_right]
+        B = torch.sum(torch.abs(neg_l_x - neg_r_x), 1)
+        C = - torch.reshape(B, [t, k])
+        L2 = F.relu(torch.add(C, torch.reshape(D, [t, 1])))
+        loss_e = (torch.sum(L1) + torch.sum(L2)) / (2.0 * t * k)
+        print(loss_e)
+
+        return loss_r + loss_e

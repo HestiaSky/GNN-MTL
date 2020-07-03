@@ -22,7 +22,7 @@ def load_data(args):
     elif args.task == 'lp':
         data = load_data_lp(args)
     elif args.task == 'ea':
-        data = load_data_ea(args.dataset)
+        data = load_data_ea(args)
 
     return data
 
@@ -354,8 +354,8 @@ def loadfile(fn, num=1):
     return ret
 
 
-def load_data_ea(dataset):
-    lang = dataset  # zh_en | ja_en | fr_en
+def load_data_ea(args):
+    lang = args.dataset  # zh_en | ja_en | fr_en
     e1 = 'data/dbp15k/' + lang + '/ent_ids_1'
     e2 = 'data/dbp15k/' + lang + '/ent_ids_2'
     r1 = 'data/dbp15k/' + lang + '/rel_ids_1'
@@ -387,6 +387,10 @@ def load_data_ea(dataset):
     features_r = features_r.to_sparse()
     data = {'x': features, 'adj': M, 'r': features_r, 'train': train, 'test': test, 'test_r': test_r, 'triple': KG,
             'idx_x': torch.LongTensor(range(features.shape[0])), 'idx_r': torch.LongTensor(range(features_r.shape[0]))}
+    if args.model == 'Distill':
+        print('loading TransE embeddings...')
+        data['emb'] = torch.from_numpy(np.load(f'{args.dataset}_embeddings.npy'))
+        print(data['emb'].shape[0], 'rows', data['emb'].shape[1], 'columns')
     return data
 
 
