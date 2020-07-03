@@ -105,9 +105,9 @@ def train_ea(args):
     print(' '.join(['Test set results:',
                     format_metrics(best_test_metrics, 'test')]))
     if args.save:
-        np.save(f'{args.dataset}_embeddings.npy', best_emb.cpu().detach().numpy())
+        np.save(f'data/dbp15k/{args.dataset}/{args.model}_embeddings.npy', best_emb.cpu().detach().numpy())
         args.data = []
-        json.dump(vars(args), open(f'{args.dataset}_config.json', 'w'))
-        torch.save(model.state_dict(), f'{args.dataset}_model.pth')
+        json.dump(vars(args), open(f'data/dbp15k/{args.dataset}/{args.model}_config.json', 'w'))
+        torch.save(model.state_dict(), f'data/dbp15k/{args.dataset}/{args.model}_model.pth')
         print(f'Saved model!')
 

@@ -389,7 +389,7 @@ def load_data_ea(args):
             'idx_x': torch.LongTensor(range(features.shape[0])), 'idx_r': torch.LongTensor(range(features_r.shape[0]))}
     if args.model == 'Distill':
         print('loading TransE embeddings...')
-        data['emb'] = torch.from_numpy(np.load(f'{args.dataset}_embeddings.npy'))
+        data['emb'] = torch.from_numpy(np.load(f'data/dbp15k/{args.dataset}/TransE_embeddings.npy'))
         print(data['emb'].shape[0], 'rows', data['emb'].shape[1], 'columns')
     return data
 
