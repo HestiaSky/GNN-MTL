@@ -2,6 +2,7 @@ from layers.att_layers import *
 from models.encoders import model2encoder
 from models.decoders import model2decoder
 from utils.eval_utils import *
+import random
 
 
 class BaseModel(nn.Module):
@@ -10,6 +11,7 @@ class BaseModel(nn.Module):
     def __init__(self, args):
         super(BaseModel, self).__init__()
         self.n_nodes = args.n_nodes
+        self.device = args.device
 
     def get_neg(self, ILL, output, k):
         neg = []
@@ -22,6 +24,42 @@ class BaseModel(nn.Module):
             neg.append(rank[0:k])
         neg = np.array(neg)
         neg = neg.reshape((t * k,))
+        return neg
+
+    def get_neg_triplet(self, triples, head, tail, ids):
+        neg = []
+        for triple in triples:
+            (h, r, t) = triple[0]
+            h2, r2, t2 = h, r, t
+            neg_scope, num = True, 0
+            while True:
+                if neg_scope:
+                    h2 = random.sample(head[r], 1)[0]
+                else:
+                    h2 = random.sample(ids, 1)[0]
+                if (h2, r2, t2) not in triples:
+                    break
+                else:
+                    num += 1
+                    if num > 10:
+                        neg_scope = False
+            neg.append((h2, r2, t2))
+
+            h2, r2, t2 = h, r, t
+            neg_scope, num = True, 0
+            while True:
+                if neg_scope:
+                    t2 = random.sample(tail[r], 1)[0]
+                else:
+                    t2 = random.sample(ids, 1)[0]
+                if (h2, r2, t2) not in triples:
+                    break
+                else:
+                    num += 1
+                    if num > 10:
+                        neg_scope = False
+            neg.append((h2, r2, t2))
+
         return neg
 
     def compute_metrics(self, outputs, data, split):
@@ -59,6 +97,7 @@ class EAModel(BaseModel):
         self.neg2_right = L.reshape((t * k,))
         self.neg_right = None
         self.neg2_left = None
+        self.neg_triple = None
 
     def encode(self, x, adj):
         h = self.encoder.encode(x, adj)
@@ -106,6 +145,7 @@ class TransE(BaseModel):
         self.neg2_right = L.reshape((t * k,))
         self.neg_right = None
         self.neg2_left = None
+        self.neg_triple = None
         self.eembed = nn.Embedding.from_pretrained(args.data['x'].to_dense(), freeze=False)
         self.rembed = nn.Embedding.from_pretrained(args.data['r'].to_dense(), freeze=False)
         self.dropout = nn.Dropout(args.dropout)
@@ -118,12 +158,18 @@ class TransE(BaseModel):
         return e, r
 
     def get_loss(self, outputs, relation, data, split):
-        tri = data['triple']
-        h = [t[0] for t in tri]
-        r = [t[1] for t in tri]
-        t = [t[2] for t in tri]
-        diff = torch.sum(torch.abs(outputs[h] + relation[r] - outputs[t]), 1)
-        loss_r = torch.sum(F.relu(diff)) / len(tri)
+        pos_tri = data['triple']
+        h = [t[0] for t in pos_tri]
+        r = [t[1] for t in pos_tri]
+        t = [t[2] for t in pos_tri]
+        diff_pos = F.normalize(outputs[h] + relation[r] - outputs[t], p=2)
+        neg_tri = self.neg_triple
+        h = [t[0] for t in neg_tri]
+        r = [t[1] for t in neg_tri]
+        t = [t[2] for t in neg_tri]
+        diff_neg = F.normalize(outputs[h] + relation[r] - outputs[t], p=2)
+        Y = torch.ones(diff_pos.size(0), 1).to(self.device)
+        loss_r = F.margin_ranking_loss(diff_pos.sum(1).view(-1, 1), diff_neg.sum(1).view(-1, 1), Y, 3)
         print(loss_r)
 
         ILL = data[split]
@@ -168,6 +214,7 @@ class DistillModel(BaseModel):
         self.neg2_right = L.reshape((t * k,))
         self.neg_right = None
         self.neg2_left = None
+        self.neg_triple = None
 
     def encode(self, x, adj):
         h = self.encoder.encode(x, adj)

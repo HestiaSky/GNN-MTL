@@ -63,6 +63,7 @@ def train_ea(args):
         if epoch % 50 == 0:
             model.neg_right = model.get_neg(data['train'][:, 0], outputs, args.neg_num)
             model.neg2_left = model.get_neg(data['train'][:, 1], outputs, args.neg_num)
+            model.neg_triple = model.get_neg_triplet(data['KG'], data['head'], data['tail'], data['x'].shape[0])
         loss = model.get_loss(outputs, data, 'train')
         # loss = model.get_loss(outputs, outputs_r, data, 'train')
         loss.backward()
@@ -89,7 +90,7 @@ def train_ea(args):
                 counter = 0
             else:
                 counter += 1
-                if counter == args.patience and epoch > args.min_epochs:
+                if counter >= args.patience and epoch > args.min_epochs:
                     print("Early stopping")
                     break
 

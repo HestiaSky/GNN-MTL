@@ -146,7 +146,7 @@ def train_nctext(args):
                 counter = 0
             else:
                 counter += 1
-                if counter == args.patience and epoch > args.min_epochs:
+                if counter >= args.patience and epoch > args.min_epochs:
                     print("Early stopping")
                     break
 

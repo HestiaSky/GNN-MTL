@@ -386,6 +386,7 @@ def load_data_ea(args):
         features_r[rel] = (torch.sum(feat[tail[rel]], 0) - torch.sum(feat[head[rel]], 0)) / len(head[rel])
     features_r = features_r.to_sparse()
     data = {'x': features, 'adj': M, 'r': features_r, 'train': train, 'test': test, 'test_r': test_r, 'triple': KG,
+            'head': head, 'tail': tail, 'head_r': head_r, 'tail_r': tail_r,
             'idx_x': torch.LongTensor(range(features.shape[0])), 'idx_r': torch.LongTensor(range(features_r.shape[0]))}
     if args.model == 'Distill':
         print('loading TransE embeddings...')
