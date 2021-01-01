@@ -2,7 +2,7 @@ import time
 
 from utils.data_utils import *
 from utils.eval_utils import format_metrics
-from models.models_ea import EAModel, TransE, DistillModel
+from models.models_ea import EAModel
 
 
 def train_ea(args):
@@ -20,12 +20,7 @@ def train_ea(args):
     args.data = data
     Model = None
     args.n_classes = args.feat_dim
-    if args.model == 'HGCN':
-        Model = EAModel
-    elif args.model == 'TransE':
-        Model = TransE
-    elif args.model == 'Distill':
-        Model = DistillModel
+    Model = EAModel
 
     # Model and Optimizer
     model = Model(args)
@@ -39,6 +34,8 @@ def train_ea(args):
     )
     tot_params = sum([np.prod(p.size()) for p in model.parameters()])
     print(f'Total number of parameters: {tot_params}')
+
+
     if args.cuda is not None and int(args.cuda) >= 0:
         # os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda)
         model = model.to(args.device)
@@ -63,7 +60,7 @@ def train_ea(args):
         if epoch % 50 == 0:
             model.neg_right = model.get_neg(data['train'][:, 0], outputs, args.neg_num)
             model.neg2_left = model.get_neg(data['train'][:, 1], outputs, args.neg_num)
-            model.neg_triple = model.get_neg_triplet(data['KG'], data['head'], data['tail'], data['x'].shape[0])
+            # model.neg_triple = model.get_neg_triplet(data['triple'], data['head'], data['tail'], data['x'].shape[0])
         loss = model.get_loss(outputs, data, 'train')
         # loss = model.get_loss(outputs, outputs_r, data, 'train')
         loss.backward()

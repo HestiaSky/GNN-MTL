@@ -1,15 +1,15 @@
 import argparse
 
-
 config_args = {
+    'unsup': True,
     'lr': 0.001,
     'dropout': 0.0,
     'cuda': 0,
-    'epochs': 1000,
+    'epochs': 100,
     'weight-decay': 0.0,
     'seed': 10086,
     'task': 'ea',
-    'model': 'Distill',
+    'model': 'GCN',
     'num-layers': 3,
     'act': 'relu',
     'dim': 300,
@@ -27,8 +27,11 @@ config_args = {
     'use_feats': 1,
     'bias': 1,
     'neg_num': 125,
-    'batch_size': 8,
-    'save': 0
+    'batch_size': 3000,
+    'save': 0,
+    'iters': 1,
+    'refine_epochs': 5,
+    'refine_size': 3000
 }
 
 parser = argparse.ArgumentParser()

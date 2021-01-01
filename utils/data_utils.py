@@ -294,11 +294,16 @@ def rfunc(e, KG):
 
 # get a dense adjacency matrix and degree
 def get_matrix(e, KG):
-    degree = [1] * e
+    degree = {}
     for tri in KG:
+        if tri[0] not in degree.keys():
+            degree[tri[0]] = 1
+        if tri[2] not in degree.keys():
+            degree[tri[2]] = 1
         if tri[0] != tri[2]:
             degree[tri[0]] += 1
             degree[tri[2]] += 1
+
     M = {}
     for tri in KG:
         if tri[0] == tri[2]:
@@ -311,7 +316,7 @@ def get_matrix(e, KG):
             M[(tri[2], tri[0])] = 1
         else:
             pass
-    for i in range(e):
+    for i in degree.keys():
         M[(i, i)] = 1
     return M, degree
 
@@ -330,6 +335,19 @@ def get_sparse_tensor(e, KG):
     M = sp.coo_matrix((val, (row, col)), shape=(e, e))
     return M
 
+#get a sparse tensor only for one graph
+def get_sparse_tensor_for_one_graph(e, KG, index_R):
+    print('getting a sparse tensor for one graph...')
+    M, degree = get_matrix(e, KG)
+    row = []
+    col = []
+    val = []
+    for fir, sec in M:
+        row.append(index_R[fir])
+        col.append(index_R[sec])
+        val.append(M[(fir, sec)] / math.sqrt(degree[fir]) / math.sqrt(degree[sec]))
+    M = sp.coo_matrix((val, (row, col)), shape=(e, e))
+    return M
 
 def get_features(lang):
     print('adding the primal input layer...')
@@ -393,5 +411,48 @@ def load_data_ea(args):
         data['emb'] = torch.from_numpy(np.load(f'data/dbp15k/{args.dataset}/TransE_embeddings.npy'))
         print(data['emb'].shape[0], 'rows', data['emb'].shape[1], 'columns')
     return data
+
+
+def load_seperate_data_ea(args):
+    lang = args.dataset  # zh_en | ja_en | fr_en
+    e1 = 'data/dbp15k/' + lang + '/ent_ids_1'
+    e2 = 'data/dbp15k/' + lang + '/ent_ids_2'
+    r1 = 'data/dbp15k/' + lang + '/rel_ids_1'
+    r2 = 'data/dbp15k/' + lang + '/rel_ids_2'
+    ill = 'data/dbp15k/' + lang + '/ref_ent_ids'
+    ill_r = 'data/dbp15k/' + lang + '/ref_r_ids'
+    kg1 = 'data/dbp15k/' + lang + '/triples_1'
+    kg2 = 'data/dbp15k/' + lang + '/triples_2'
+
+    index1, index1_R, index2, index2_R = {}, {}, {}, {}
+    for i, v in enumerate(loadfile(e1, 1)):
+        index1[i] = v[0]
+        index1_R[v[0]] = i
+    for i, v in enumerate(loadfile(e2, 1)):
+        index2[i] = v[0]
+        index2_R[v[0]] = i
+    E1, E2 = len(index1), len(index2)
+    R1, R2 = len(set(loadfile(r1, 1))), len(set(loadfile(r2, 1)))
+    KG1, KG2 = loadfile(kg1, 3), loadfile(kg2, 3)
+    KG = KG1 + KG2
+    M1 = sparse_mx_to_torch_sparse_tensor(get_sparse_tensor_for_one_graph(E1, KG1, index1_R))
+    M2 = sparse_mx_to_torch_sparse_tensor(get_sparse_tensor_for_one_graph(E2, KG2, index2_R))
+    M = sparse_mx_to_torch_sparse_tensor(get_sparse_tensor(E1 + E2, KG))
+    
+
+    
+    ILL = loadfile(ill, 2)
+    illL = len(ILL)
+    np.random.shuffle(ILL)
+    train = np.array(ILL[:illL // 10 * 3])
+    test = np.array(ILL[illL // 10 * 3:])
+    test_r = loadfile(ill_r, 2)
+
+    features = get_features(lang[0:2])
+    features = sparse_mx_to_torch_sparse_tensor(features)
+
+    data = {'x': features, 'adj': M, 'e1': E1, 'e2': E2, 'adj1': M1, 'adj2': M2, 'train': train, 'test': test, "index1": index1, "index2": index2, "index1_R": index1_R, "index2_R": index2_R}
+    return data
+
 
 

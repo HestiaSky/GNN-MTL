@@ -72,6 +72,7 @@ def get_hits(vec, test_pair, top_k=(1, 10, 50, 100)):
     Lvec = np.array([vec[e1].detach().numpy() for e1, e2 in test_pair])
     Rvec = np.array([vec[e2].detach().numpy() for e1, e2 in test_pair])
     sim = scipy.spatial.distance.cdist(Lvec, Rvec, metric='cityblock')
+    # sim = scipy.spatial.distance.cdist(Lvec, Rvec, metric='euclidean')
     top_lr = [0] * len(top_k)
     for i in range(Lvec.shape[0]):
         rank = sim[i, :].argsort()
@@ -128,3 +129,40 @@ def auc_metrics(yhat_raw, y, ymic):
     roc_auc["auc_micro"] = auc(fpr["micro"], tpr["micro"])
 
     return roc_auc
+
+def eval_gw_matching_matrix(T, test_pair, index1_R, index2_R, top_k=(1, 10, 50, 100)):
+    L = [index1_R[l] for l, r in test_pair]
+    R = [index2_R[r] for l, r in test_pair]
+    sim = (T[L, :][:, R]).cpu().numpy()
+    top_lr = [0] * len(top_k)
+    for i in range(len(L)):
+        rank = sim[i, :].argsort()
+        rank_index = np.where(rank == i)[0][0]
+        for j in range(len(top_k)):
+            if rank_index < top_k[j]:
+                top_lr[j] += 1
+    top_rl = [0] * len(top_k)
+    for i in range(len(R)):
+        rank = sim[:, i].argsort()
+        rank_index = np.where(rank == i)[0][0]
+        for j in range(len(top_k)):
+            if rank_index < top_k[j]:
+                top_rl[j] += 1
+
+    metrics = {}
+    for i in range(len(top_lr)):
+        metric_name, metric_val = 'Hits@{}_l'.format(top_k[i]), top_lr[i] / len(test_pair) * 100
+        metrics[metric_name] = metric_val
+    for i in range(len(top_rl)):
+        metric_name, metric_val = 'Hits@{}_r'.format(top_k[i]), top_rl[i] / len(test_pair) * 100
+        metrics[metric_name] = metric_val
+    return metrics
+
+def eval_at_1(outputs, data):
+    test_pair = data['test']
+    L = np.array([e1 for e1, e2 in test_pair])
+    R = np.array([e2 for e1, e2 in test_pair])
+    M = torch.cdist(outputs[L], outputs[R], p=1)
+    cnt = torch.zeros(len(L))
+    cnt[torch.argmin(M, dim=1) == torch.arange(0, len(L)).to(outputs.device)] = 1
+    return torch.sum(cnt) / len(cnt) * 100

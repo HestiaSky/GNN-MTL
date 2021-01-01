@@ -90,4 +90,5 @@ model2encoder = {
     'GCN': GCN,
     'GAT': GAT,
     'HGCN': HGCN,
+    'Distill': HGCN,
 }

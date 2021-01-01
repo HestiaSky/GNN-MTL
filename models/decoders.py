@@ -77,4 +77,5 @@ model2decoder = {
     'GCN': MLPDecoder,
     'GAT': MLPDecoder,
     'HGCN': HGCNDecoder,
+    'Distill': HGCNDecoder,
 }
