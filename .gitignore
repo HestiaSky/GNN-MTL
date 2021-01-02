@@ -12,7 +12,6 @@ __pycache__/
 log/
 .DS_Store
 config.py
-data/
 build/
 develop-eggs/
 dist/
